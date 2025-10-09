@@ -2,6 +2,7 @@
 #include "function.hpp"
 #include "package.hpp"
 #include "registers.hpp"
+#include <fstream>
 #include <iostream>
 
 #define intern_function(name, sym_name)                                      \
@@ -12,8 +13,8 @@ void intern_functions()
 {
     intern_function(sum, sum);
     intern_function(print, print);
-    intern_function(mov, mov);
-    intern_function(Syscall, syscall);
+    intern_function(typep, typep);
+    intern_function(set_symbol_function, set_symbol_function);
 }
 
 // --------------------------------------------------------------------------------
@@ -21,7 +22,8 @@ void intern_functions()
 std::shared_ptr<Object> sum::eval_body(
     const std::vector<std::shared_ptr<Object>>& args,
     Compiler& comp [[maybe_unused]],
-    lexical_environment& lex_env [[maybe_unused]]) const
+    lexical_environment& lex_env [[maybe_unused]],
+    std::ofstream& output_file [[maybe_unused]]) const
 {
     int64_t sum_value = 0;
     for (const std::shared_ptr<Object>& arg : args) {
@@ -39,7 +41,8 @@ std::shared_ptr<Object> sum::eval_body(
 std::shared_ptr<Object> print::eval_body(
     const std::vector<std::shared_ptr<Object>>& args,
     Compiler& comp [[maybe_unused]],
-    lexical_environment& lex_env [[maybe_unused]]) const
+    lexical_environment& lex_env [[maybe_unused]],
+    std::ofstream& output_file [[maybe_unused]]) const
 {
     if (args.size() != 1)
         throw std::runtime_error("Expected only one argument.");
@@ -52,40 +55,62 @@ std::shared_ptr<Object> print::eval_body(
 
 // --------------------------------------------------------------------------------
 
-std::shared_ptr<Object> mov::eval_body(
+std::shared_ptr<Object> typep::eval_body(
     const std::vector<std::shared_ptr<Object>>& args,
-    Compiler& comp,
-    lexical_environment& lex_env [[maybe_unused]]) const
+    Compiler& comp [[maybe_unused]],
+    lexical_environment& lex_env [[maybe_unused]],
+    std::ofstream& output_file [[maybe_unused]]) const
+{
+    if (args.size() != 2)
+        throw std::runtime_error("Expected two arguments.");
+
+    std::shared_ptr<Symbol> sym = std::dynamic_pointer_cast<Symbol>(args[1]);
+    if (!sym)
+        throw std::runtime_error("The second argument must be a symbol.");
+
+    if (Object::typep(args[0], sym)) {
+        return (*package.find_symbol("t"))->values.back();
+    } else {
+        return (*package.find_symbol("nil"))->values.back();
+    }
+}
+
+// --------------------------------------------------------------------------------
+
+std::shared_ptr<Object> set_symbol_function::eval_body(
+    const std::vector<std::shared_ptr<Object>>& args,
+    Compiler& comp [[maybe_unused]],
+    lexical_environment& lex_env [[maybe_unused]],
+    std::ofstream& output_file [[maybe_unused]]) const
 {
     if (args.size() != 2)
         throw std::runtime_error("Expected two arguments.");
 
     std::shared_ptr<Symbol> sym = std::dynamic_pointer_cast<Symbol>(args[0]);
+    if (!sym)
+        throw std::runtime_error("The first argument must be a symbol.");
 
-    if (!Registers::reg64.contains(sym->name))
-        throw std::runtime_error("The name " + sym->name + " is not a 64 bit register.");
+    std::shared_ptr<Procedure> proc = std::dynamic_pointer_cast<Procedure>(args[1]);
+    if (!proc)
+        throw std::runtime_error("The second argument must be a valid procedure.");
 
-    comp.mov(Registers::reg64[sym->name], std::dynamic_pointer_cast<Integer>(args[1])->value);
+    sym->function = proc;
 
-    return std::shared_ptr<Nil>();
+    return proc;
 }
 
 // --------------------------------------------------------------------------------
 
-std::shared_ptr<Object> Syscall::eval_body(
+std::shared_ptr<Object> emit::eval_body(
     const std::vector<std::shared_ptr<Object>>& args,
-    Compiler& comp,
-    lexical_environment& lex_env [[maybe_unused]]) const
+    Compiler& comp [[maybe_unused]],
+    lexical_environment& lex_env [[maybe_unused]],
+    std::ofstream& output_file [[maybe_unused]]) const
 {
-    if (!args.empty())
-        throw std::runtime_error("Expected zero arguments.");
+    if (args.size() != 1)
+        throw std::runtime_error("Expected one argument.");
 
-    comp.syscall();
+    Object::emit(args[0]);
 
-    // std::stringstream instr;
-    // instr << "syscall\n";
-
-    // comp.add_code(instr.str());
-
-    return std::shared_ptr<Nil>();
+    return args[0];
 }

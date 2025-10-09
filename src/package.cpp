@@ -1,7 +1,8 @@
 
 #include "package.hpp"
+#include <iostream>
 
-std::optional<std::shared_ptr<Symbol>> packages::find_symbol(const std::string& name)
+std::optional<std::shared_ptr<Symbol>> Package::find_symbol(const std::string& name)
 {
     if (this->symbols.contains(name)) {
         return this->symbols[name];
@@ -10,11 +11,30 @@ std::optional<std::shared_ptr<Symbol>> packages::find_symbol(const std::string& 
     }
 }
 
-std::shared_ptr<Symbol>& packages::intern_symbol(const std::string& name)
+std::shared_ptr<Symbol>& Package::intern_symbol(const std::string& name)
 {
     if (!this->symbols.contains(name))
         this->symbols.try_emplace(name, std::make_shared<Symbol>(name));
     return this->symbols[name];
 }
 
-packages package;
+void Package::emit_impl() const
+{
+    throw std::runtime_error("A package cannot be emitted");
+}
+
+std::shared_ptr<Object> Package::eval_impl(
+    const std::shared_ptr<Object>& obj, lexical_environment& lex_env [[maybe_unused]]) const
+{
+    return obj;
+}
+
+void Package::print_impl() const
+{
+    std::cout << "<package>" << std::endl;
+}
+
+bool Package::typep_impl(const std::shared_ptr<Symbol>& sym) const
+{
+    return sym->name == "package";
+}

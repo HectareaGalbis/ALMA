@@ -5,13 +5,21 @@
 #include <map>
 #include <optional>
 
-class packages {
+class Package : Object {
+public:
+    static Package current_package;
+
 private:
     std::map<std::string, std::shared_ptr<Symbol>> symbols;
 
 public:
     std::optional<std::shared_ptr<Symbol>> find_symbol(const std::string& name);
     std::shared_ptr<Symbol>& intern_symbol(const std::string& name);
-};
 
-extern packages package;
+public:
+    virtual std::shared_ptr<Object> eval_impl(
+        const std::shared_ptr<Object>& obj, lexical_environment& lex_env) const override;
+    virtual void emit_impl() const override;
+    virtual void print_impl() const override;
+    virtual bool typep_impl(const std::shared_ptr<Symbol>& sym) const override;
+};

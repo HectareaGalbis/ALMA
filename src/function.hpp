@@ -16,11 +16,11 @@ void intern_functions();
                                                                                                     \
     protected:                                                                                      \
         virtual std::shared_ptr<Object> eval_body(const std::vector<std::shared_ptr<Object>>& args, \
-            Compiler& comp,                                                                         \
             lexical_environment& lex_env) const override;                                           \
     }
 
 declare_function(sum);
 declare_function(print);
-declare_function(mov);
-declare_function(Syscall);
+declare_function(typep);
+declare_function(set_symbol_function);
+declare_function(emit);

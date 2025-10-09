@@ -14,6 +14,8 @@ void intern_special_operators()
     intern_special_operator(progn);
     intern_special_operator(let);
     intern_special_operator(quote);
+    intern_special_operator(lambda);
+    intern_special_operator(gamma);
 }
 
 // --------------------------------------------------------------------------------
@@ -21,15 +23,16 @@ void intern_special_operators()
 std::shared_ptr<Object> progn::apply(
     Compiler& comp,
     lexical_environment& lex_env [[maybe_unused]],
-    const std::vector<std::shared_ptr<Object>>& arguments)
+    const std::vector<std::shared_ptr<Object>>& arguments,
+    std::ofstream& output_file [[maybe_unused]])
 {
     if (arguments.empty()) {
         return std::make_shared<Nil>();
     }
     for (size_t i = 0; i < arguments.size() - 1; i++) {
-        Object::eval(arguments[i], comp, lex_env);
+        Object::eval(arguments[i], comp, lex_env, output_file);
     }
-    return Object::eval(arguments.back(), comp, lex_env);
+    return Object::eval(arguments.back(), comp, lex_env, output_file);
 }
 
 // --------------------------------------------------------------------------------
@@ -58,12 +61,13 @@ static std::vector<std::pair<std::shared_ptr<Symbol>, std::shared_ptr<Object>>> 
 static std::vector<std::pair<std::shared_ptr<Symbol>, std::shared_ptr<Object>>> evaluateBindings(
     Compiler& comp,
     lexical_environment& lex_env,
-    const std::vector<std::pair<std::shared_ptr<Symbol>, std::shared_ptr<Object>>>& bindings)
+    const std::vector<std::pair<std::shared_ptr<Symbol>, std::shared_ptr<Object>>>& bindings,
+    std::ofstream& output_file)
 {
     std::vector<std::pair<std::shared_ptr<Symbol>, std::shared_ptr<Object>>> evaluatedBindings;
 
     for (const auto& [var, value] : bindings) {
-        evaluatedBindings.emplace_back(var, Object::eval(value, comp, lex_env));
+        evaluatedBindings.emplace_back(var, Object::eval(value, comp, lex_env, output_file));
     }
 
     return evaluatedBindings;
@@ -72,7 +76,8 @@ static std::vector<std::pair<std::shared_ptr<Symbol>, std::shared_ptr<Object>>> 
 std::shared_ptr<Object> let::apply(
     Compiler& comp,
     lexical_environment& lex_env,
-    const std::vector<std::shared_ptr<Object>>& arguments)
+    const std::vector<std::shared_ptr<Object>>& arguments,
+    std::ofstream& output_file)
 {
     if (arguments.empty())
         throw std::runtime_error("let needs at least a list");
@@ -81,7 +86,7 @@ std::shared_ptr<Object> let::apply(
     if (!bindings)
         throw std::runtime_error("Expected a list.");
     auto parsedBindings = parseBindings(bindings);
-    auto evaluatedBindings = evaluateBindings(comp, lex_env, parsedBindings);
+    auto evaluatedBindings = evaluateBindings(comp, lex_env, parsedBindings, output_file);
 
     if (arguments.size() == 1)
         return std::make_shared<Nil>();
@@ -89,8 +94,8 @@ std::shared_ptr<Object> let::apply(
     for (const auto& [var, value] : evaluatedBindings)
         lex_env.push_value(var, value);
     for (size_t i = 1; i < arguments.size() - 1; i++)
-        Object::eval(arguments[i], comp, lex_env);
-    std::shared_ptr<Object> result = Object::eval(arguments.back(), comp, lex_env);
+        Object::eval(arguments[i], comp, lex_env, output_file);
+    std::shared_ptr<Object> result = Object::eval(arguments.back(), comp, lex_env, output_file);
     for (const auto& [var, value] : evaluatedBindings)
         lex_env.pop_value(var);
 
@@ -102,9 +107,70 @@ std::shared_ptr<Object> let::apply(
 std::shared_ptr<Object> quote::apply(
     Compiler& comp [[maybe_unused]],
     lexical_environment& lex_env [[maybe_unused]],
-    const std::vector<std::shared_ptr<Object>>& arguments)
+    const std::vector<std::shared_ptr<Object>>& arguments,
+    std::ofstream& output_file [[maybe_unused]])
 {
     if (arguments.size() != 1)
         throw std::runtime_error("Expected only one argument.");
     return arguments[0];
+}
+
+// --------------------------------------------------------------------------------
+
+std::shared_ptr<Object> lambda::apply(
+    Compiler& comp [[maybe_unused]],
+    lexical_environment& lex_env [[maybe_unused]],
+    const std::vector<std::shared_ptr<Object>>& arguments,
+    std::ofstream& output_file [[maybe_unused]])
+{
+    if (arguments.size() < 1)
+        throw std::runtime_error("Expected at least one argument.");
+
+    std::shared_ptr<List> func_args = std::dynamic_pointer_cast<List>(arguments[0]);
+    if (!func_args)
+        throw std::runtime_error("Expected a list of symbols.");
+
+    std::vector<std::shared_ptr<Symbol>> func_arg_symbols;
+    for (std::shared_ptr<Object>& func_arg : func_args->elements) {
+        std::shared_ptr<Symbol> func_arg_symbol = std::dynamic_pointer_cast<Symbol>(func_arg);
+        if (!func_arg_symbol)
+            throw std::runtime_error("Expected a symbol as an argument.");
+        func_arg_symbols.push_back(func_arg_symbol);
+    }
+
+    std::vector<std::shared_ptr<Object>> body;
+    for (size_t i = 1; i < arguments.size(); i++)
+        body.push_back(arguments[i]);
+
+    return std::make_shared<FunctionUser>("<lambda>", func_arg_symbols, body);
+}
+
+// --------------------------------------------------------------------------------
+
+std::shared_ptr<Object> gamma::apply(
+    Compiler& comp [[maybe_unused]],
+    lexical_environment& lex_env [[maybe_unused]],
+    const std::vector<std::shared_ptr<Object>>& arguments,
+    std::ofstream& output_file [[maybe_unused]])
+{
+    if (arguments.size() < 1)
+        throw std::runtime_error("Expected at least one argument.");
+
+    std::shared_ptr<List> macro_args = std::dynamic_pointer_cast<List>(arguments[0]);
+    if (!macro_args)
+        throw std::runtime_error("Expected a list of symbols.");
+
+    std::vector<std::shared_ptr<Symbol>> macro_arg_symbols;
+    for (std::shared_ptr<Object>& macro_arg : macro_args->elements) {
+        std::shared_ptr<Symbol> macro_arg_symbol = std::dynamic_pointer_cast<Symbol>(macro_arg);
+        if (!macro_arg_symbol)
+            throw std::runtime_error("Expected a symbol as an argument.");
+        macro_arg_symbols.push_back(macro_arg_symbol);
+    }
+
+    std::vector<std::shared_ptr<Object>> body;
+    for (size_t i = 1; i < arguments.size(); i++)
+        body.push_back(arguments[i]);
+
+    return std::make_shared<MacroUser>("<lambda>", macro_arg_symbols, body);
 }
