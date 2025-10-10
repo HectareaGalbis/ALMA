@@ -5,9 +5,12 @@
 #include <map>
 #include <optional>
 
-class Package : Object {
+class Package : public Object {
 public:
-    static Package current_package;
+    static std::shared_ptr<Package> almaPackage;
+    static std::shared_ptr<Package> currentPackage;
+
+    static void initAlmaPackage();
 
 private:
     std::map<std::string, std::shared_ptr<Symbol>> symbols;

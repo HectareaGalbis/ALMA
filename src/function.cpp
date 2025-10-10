@@ -1,29 +1,27 @@
 
 #include "function.hpp"
+#include "objects.hpp"
 #include "package.hpp"
-#include "registers.hpp"
-#include <fstream>
 #include <iostream>
 
-#define intern_function(name, sym_name)                                      \
-    std::shared_ptr<Symbol>& name##_func = package.intern_symbol(#sym_name); \
-    name##_func->function = std::make_shared<name>(#sym_name);
+#define intern_function(name, sym_name)                                                   \
+    std::shared_ptr<Symbol>& name##_func = Package::almaPackage->intern_symbol(sym_name); \
+    name##_func->function = std::make_shared<name>(sym_name);
 
 void intern_functions()
 {
-    intern_function(sum, sum);
-    intern_function(print, print);
-    intern_function(typep, typep);
-    intern_function(set_symbol_function, set_symbol_function);
+    intern_function(sum, "+");
+    intern_function(print, "print");
+    intern_function(typep, "typep");
+    intern_function(set_symbol_function, "set-symbol-function");
+    intern_function(set_symbol_package, "set-symbol-package");
+    intern_function(emit, "emit");
 }
 
 // --------------------------------------------------------------------------------
 
 std::shared_ptr<Object> sum::eval_body(
-    const std::vector<std::shared_ptr<Object>>& args,
-    Compiler& comp [[maybe_unused]],
-    lexical_environment& lex_env [[maybe_unused]],
-    std::ofstream& output_file [[maybe_unused]]) const
+    const std::vector<std::shared_ptr<Object>>& args, lexical_environment& lex_env [[maybe_unused]]) const
 {
     int64_t sum_value = 0;
     for (const std::shared_ptr<Object>& arg : args) {
@@ -39,10 +37,7 @@ std::shared_ptr<Object> sum::eval_body(
 // --------------------------------------------------------------------------------
 
 std::shared_ptr<Object> print::eval_body(
-    const std::vector<std::shared_ptr<Object>>& args,
-    Compiler& comp [[maybe_unused]],
-    lexical_environment& lex_env [[maybe_unused]],
-    std::ofstream& output_file [[maybe_unused]]) const
+    const std::vector<std::shared_ptr<Object>>& args, lexical_environment& lex_env [[maybe_unused]]) const
 {
     if (args.size() != 1)
         throw std::runtime_error("Expected only one argument.");
@@ -56,10 +51,7 @@ std::shared_ptr<Object> print::eval_body(
 // --------------------------------------------------------------------------------
 
 std::shared_ptr<Object> typep::eval_body(
-    const std::vector<std::shared_ptr<Object>>& args,
-    Compiler& comp [[maybe_unused]],
-    lexical_environment& lex_env [[maybe_unused]],
-    std::ofstream& output_file [[maybe_unused]]) const
+    const std::vector<std::shared_ptr<Object>>& args, lexical_environment& lex_env [[maybe_unused]]) const
 {
     if (args.size() != 2)
         throw std::runtime_error("Expected two arguments.");
@@ -69,19 +61,16 @@ std::shared_ptr<Object> typep::eval_body(
         throw std::runtime_error("The second argument must be a symbol.");
 
     if (Object::typep(args[0], sym)) {
-        return (*package.find_symbol("t"))->values.back();
+        return (*Package::almaPackage->find_symbol("t"))->values.back();
     } else {
-        return (*package.find_symbol("nil"))->values.back();
+        return (*Package::almaPackage->find_symbol("nil"))->values.back();
     }
 }
 
 // --------------------------------------------------------------------------------
 
 std::shared_ptr<Object> set_symbol_function::eval_body(
-    const std::vector<std::shared_ptr<Object>>& args,
-    Compiler& comp [[maybe_unused]],
-    lexical_environment& lex_env [[maybe_unused]],
-    std::ofstream& output_file [[maybe_unused]]) const
+    const std::vector<std::shared_ptr<Object>>& args, lexical_environment& lex_env [[maybe_unused]]) const
 {
     if (args.size() != 2)
         throw std::runtime_error("Expected two arguments.");
@@ -101,11 +90,29 @@ std::shared_ptr<Object> set_symbol_function::eval_body(
 
 // --------------------------------------------------------------------------------
 
+std::shared_ptr<Object> set_symbol_package::eval_body(
+    const std::vector<std::shared_ptr<Object>>& args, lexical_environment& lex_env [[maybe_unused]]) const
+{
+    if (args.size() != 2)
+        throw std::runtime_error("Expected two arguments.");
+
+    std::shared_ptr<Symbol> sym = std::dynamic_pointer_cast<Symbol>(args[0]);
+    if (!sym)
+        throw std::runtime_error("The first argument must be a symbol.");
+
+    std::shared_ptr<Package> package = std::dynamic_pointer_cast<Package>(args[1]);
+    if (!package)
+        throw std::runtime_error("The second argument must be a valid package.");
+
+    sym->package = package;
+
+    return package;
+}
+
+// --------------------------------------------------------------------------------
+
 std::shared_ptr<Object> emit::eval_body(
-    const std::vector<std::shared_ptr<Object>>& args,
-    Compiler& comp [[maybe_unused]],
-    lexical_environment& lex_env [[maybe_unused]],
-    std::ofstream& output_file [[maybe_unused]]) const
+    const std::vector<std::shared_ptr<Object>>& args, lexical_environment& lex_env [[maybe_unused]]) const
 {
     if (args.size() != 1)
         throw std::runtime_error("Expected one argument.");

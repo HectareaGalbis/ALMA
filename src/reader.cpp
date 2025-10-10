@@ -4,9 +4,10 @@
 #include <iostream>
 #include <regex>
 
-#define maybe(EXPR)                             \
-    if (std::shared_ptr<Object> __obj__ = EXPR) \
-        return __obj__;
+#define maybe(EXPR)                               \
+    if (std::shared_ptr<Object> __obj__ = EXPR) { \
+        return __obj__;                           \
+    }
 
 std::shared_ptr<Object> reader::read(std::istream& input)
 {
@@ -63,9 +64,9 @@ std::shared_ptr<Object> reader::read_list(std::istream& input)
     }
     int rp = input.get();
     if (rp != ')')
-        throw std::runtime_error("Expected the character ')'");
+        throw std::runtime_error("Expected the character ')' but found '" + std::string(1, (char)rp) + "'");
 
-    return std::make_shared<List>(objects);
+    return std::make_shared<Cons>(objects);
 }
 
 std::shared_ptr<Object> reader::read_quote(std::istream& input)
@@ -76,9 +77,9 @@ std::shared_ptr<Object> reader::read_quote(std::istream& input)
         return nullptr;
     }
     std::shared_ptr<Object> object = reader::read(input);
-    std::shared_ptr<Symbol> qs = *package.find_symbol("quote");
+    std::shared_ptr<Symbol> qs = *Package::almaPackage->find_symbol("quote");
 
-    return std::make_shared<List>(std::vector<std::shared_ptr<Object>> { qs, object });
+    return std::make_shared<Cons>(std::vector<std::shared_ptr<Object>> { qs, object });
 }
 
 std::shared_ptr<Object> reader::read_string(std::istream& input)
@@ -125,7 +126,7 @@ std::shared_ptr<Object> reader::read_string(std::istream& input)
 
 static bool is_token_character(int c)
 {
-    return c == '!' || (c >= '#' && c <= '&') || (c >= '*' && c <= '+') || (c >= '-' && c <= '9')
+    return c == '!' || (c >= '#' && c <= '&') || (c >= '*' && c <= '+') || (c >= '-' && c <= ':')
         || (c >= '<' && c <= 'Z') || c == '_' || (c >= 'a' && c <= 'z');
 }
 
@@ -139,6 +140,54 @@ static std::shared_ptr<Integer> parse_number(const std::string& token)
     return nullptr;
 }
 
+static std::pair<size_t, size_t> find_next_delimiter(const std::string& s, const std::vector<std::string>& delimiters, size_t start)
+{
+    for (const std::string& delimiter : delimiters) {
+        size_t end = s.find(delimiter, start);
+        if (end != std::string::npos) {
+            return { end, delimiter.size() };
+        }
+    }
+    return { std::string::npos, 0 };
+}
+
+static std::vector<std::string> splitString(const std::string& s, const std::vector<std::string>& delimiters)
+{
+    std::vector<std::string> tokens;
+    size_t start = 0;
+    while (true) {
+        auto [end, delSize] = find_next_delimiter(s, delimiters, start);
+        tokens.push_back(s.substr(start, end - start));
+        start = end + delSize;
+        if (end == std::string::npos)
+            break;
+    }
+
+    return tokens;
+}
+
+static std::vector<std::string> parse_token(const std::string& token)
+{
+    return splitString(token, { "::", ":" }); // Order matters. Most specific first
+}
+
+static std::shared_ptr<Symbol> findSymbol(const std::vector<std::string>& splittedTokens)
+{
+    std::shared_ptr<Package> packageIt = Package::currentPackage;
+    for (size_t i = 0; i < splittedTokens.size() - 1; i++) {
+        std::shared_ptr<Symbol> packageSymbol = packageIt->intern_symbol(splittedTokens[i]);
+        if (!packageSymbol->package) {
+            std::string currentSymbol;
+            for (size_t j = 0; j < i; j++)
+                currentSymbol += splittedTokens[j] + "::";
+            currentSymbol += splittedTokens[i];
+            throw std::runtime_error("The symbol " + currentSymbol + " does not denote a package.");
+        }
+        packageIt = packageSymbol->package;
+    }
+    return packageIt->intern_symbol(splittedTokens.back());
+}
+
 std::shared_ptr<Object> reader::read_token(std::istream& input)
 {
     int c = input.peek();
@@ -147,7 +196,7 @@ std::shared_ptr<Object> reader::read_token(std::istream& input)
     std::string token;
     while (input) {
         int d = input.get();
-        if (!is_token_character(c)) {
+        if (!is_token_character(d)) {
             input.unget();
             break;
         }
@@ -158,5 +207,6 @@ std::shared_ptr<Object> reader::read_token(std::istream& input)
     if (number)
         return number;
 
-    return package.intern_symbol(token);
+    std::vector<std::string> splittedTokens = parse_token(token);
+    return findSymbol(splittedTokens);
 }

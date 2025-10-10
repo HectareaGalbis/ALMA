@@ -160,6 +160,7 @@ struct Symbol : Object {
     std::string name;
     std::vector<std::shared_ptr<Object>> values;
     std::shared_ptr<Procedure> function;
+    std::shared_ptr<class Package> package;
 
     Symbol(const std::string& _name);
 
@@ -176,6 +177,9 @@ struct Cons : Object {
     std::shared_ptr<Object> cdr;
 
     Cons(const std::shared_ptr<Object>& _car, const std::shared_ptr<Object>& _cdr);
+    Cons(const std::vector<std::shared_ptr<Object>>& list);
+
+    std::vector<std::shared_ptr<Object>> toList() const;
 
     virtual std::shared_ptr<Object> eval_impl(
         const std::shared_ptr<Object>& obj, lexical_environment& lex_env) const override;
@@ -190,7 +194,10 @@ struct Nil : Object {
     {
     }
 
+    virtual std::shared_ptr<Object> eval_impl(
+        const std::shared_ptr<Object>& obj, lexical_environment& lex_env) const override;
     virtual void emit_impl() const override { }
     virtual operator bool() const override { return false; }
+    virtual void print_impl() const override;
     virtual bool typep_impl(const std::shared_ptr<Symbol>& sym) const override;
 };

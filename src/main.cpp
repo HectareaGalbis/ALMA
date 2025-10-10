@@ -4,7 +4,6 @@
 #include "parser.hpp"
 #include "special_operator.hpp"
 #include "symbol.hpp"
-#include <elfio/elfio.hpp>
 #include <filesystem>
 #include <fstream>
 
@@ -32,15 +31,16 @@ int main(int argc, char* argv[])
         exit(1);
     }
 
-    intern_special_operators();
-    intern_functions();
-    intern_symbols();
-
     std::filesystem::path file(argv[1]);
     if (argc == 3) {
         std::filesystem::path output(argv[2]);
         Emitter::emitter = std::make_unique<std::ofstream>(output);
     }
+
+    Package::initAlmaPackage();
+    intern_special_operators();
+    intern_functions();
+    intern_symbols();
 
     try {
         lexical_environment lex_env;

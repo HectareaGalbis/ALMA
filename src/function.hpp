@@ -23,4 +23,5 @@ declare_function(sum);
 declare_function(print);
 declare_function(typep);
 declare_function(set_symbol_function);
+declare_function(set_symbol_package);
 declare_function(emit);

@@ -2,6 +2,15 @@
 #include "package.hpp"
 #include <iostream>
 
+std::shared_ptr<Package> Package::almaPackage;
+std::shared_ptr<Package> Package::currentPackage;
+
+void Package::initAlmaPackage()
+{
+    Package::almaPackage = std::make_shared<Package>();
+    Package::currentPackage = Package::almaPackage;
+}
+
 std::optional<std::shared_ptr<Symbol>> Package::find_symbol(const std::string& name)
 {
     if (this->symbols.contains(name)) {
