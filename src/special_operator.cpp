@@ -112,6 +112,16 @@ std::shared_ptr<Object> quote::apply(
 
 // --------------------------------------------------------------------------------
 
+static std::vector<std::shared_ptr<Object>> expand_quotation(const std::shared_ptr<Symbol>& sym,
+    const std::vector<std::shared_ptr<Object>>& elements)
+{
+    std::vector<std::shared_ptr<Object>> new_elements;
+    for (const std::shared_ptr<Object>& element : elements) {
+        new_elements.push_back(std::make_shared<Cons>(std::vector<std::shared_ptr<Object>> { sym, element }));
+    }
+    return new_elements;
+}
+
 static std::vector<std::shared_ptr<Object>> eval_quasiquote(const std::shared_ptr<Object>& obj,
     size_t quasi_level, Environment& lex_env)
 {
@@ -120,33 +130,29 @@ static std::vector<std::shared_ptr<Object>> eval_quasiquote(const std::shared_pt
         return { obj };
     std::vector<std::shared_ptr<Object>> list = cons->toList();
     std::shared_ptr<Symbol> sym = std::dynamic_pointer_cast<Symbol>(list[0]);
-    if (sym && sym->name == "quasiquote") {
-        std::vector<std::shared_ptr<Object>> result = { sym };
-        std::vector<std::shared_ptr<Object>> quasi_res = eval_quasiquote(list[1], quasi_level + 1, lex_env);
-        result.insert(result.end(), quasi_res.begin(), quasi_res.end());
-        return { std::make_shared<Cons>(result) };
+    if (sym && sym->name == "quote") {
+        return expand_quotation(sym, eval_quasiquote(list[1], quasi_level, lex_env));
+    } else if (sym && sym->name == "quasiquote") {
+        return expand_quotation(sym, eval_quasiquote(list[1], quasi_level + 1, lex_env));
     } else if (sym && sym->name == "unquote") {
         if (quasi_level == 1)
             return { Object::eval(list[1], lex_env) };
         else {
-            std::vector<std::shared_ptr<Object>> result = { sym };
-            std::vector<std::shared_ptr<Object>> unquote_res
-                = eval_quasiquote(list[1], quasi_level - 1, lex_env);
-            result.insert(result.end(), unquote_res.begin(), unquote_res.end());
-            return { std::make_shared<Cons>(result) };
+            return expand_quotation(sym, eval_quasiquote(list[1], quasi_level - 1, lex_env));
         }
-    } else if (sym && sym->name == "slice-unquote" && quasi_level == 1) {
+    } else if (sym && sym->name == "slice-unquote") {
         if (quasi_level == 1) {
-            std::shared_ptr<Cons> eval_obj = std::dynamic_pointer_cast<Cons>(Object::eval(list[1], lex_env));
-            if (!eval_obj)
-                throw std::runtime_error("The result of slice-unquote must be a list.");
-            return eval_obj->toList();
+            std::shared_ptr<Object> eval_obj = Object::eval(list[1], lex_env);
+            std::shared_ptr<Cons> eval_cons = std::dynamic_pointer_cast<Cons>(eval_obj);
+            if (!eval_cons) {
+                std::shared_ptr<Nil> nil_obj = std::dynamic_pointer_cast<Nil>(eval_obj);
+                if (!nil_obj)
+                    throw std::runtime_error("The result of slice-unquote must be a list.");
+                return {};
+            }
+            return eval_cons->toList();
         } else {
-            std::vector<std::shared_ptr<Object>> result = { sym };
-            std::vector<std::shared_ptr<Object>> unquote_res
-                = eval_quasiquote(list[1], quasi_level - 1, lex_env);
-            result.insert(result.end(), unquote_res.begin(), unquote_res.end());
-            return { std::make_shared<Cons>(result) };
+            return expand_quotation(sym, eval_quasiquote(list[1], quasi_level - 1, lex_env));
         }
     } else {
         std::vector<std::shared_ptr<Object>> result_list;
@@ -154,7 +160,10 @@ static std::vector<std::shared_ptr<Object>> eval_quasiquote(const std::shared_pt
             std::vector<std::shared_ptr<Object>> result_elem = eval_quasiquote(elem, quasi_level, lex_env);
             result_list.insert(result_list.end(), result_elem.begin(), result_elem.end());
         }
-        return { std::make_shared<Cons>(result_list) };
+        if (result_list.empty())
+            return { std::make_shared<Nil>() };
+        else
+            return { std::make_shared<Cons>(result_list) };
     }
 }
 
