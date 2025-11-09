@@ -21,8 +21,8 @@ public:
 
 public:
     virtual std::shared_ptr<Object> eval_impl(
-        const std::shared_ptr<Object>& obj, lexical_environment& lex_env) const override;
+        const std::shared_ptr<Object>& obj, Environment& lex_env) const override;
     virtual void emit_impl() const override;
-    virtual void print_impl() const override;
+    virtual std::string to_string_impl() const override;
     virtual bool typep_impl(const std::shared_ptr<Symbol>& sym) const override;
 };

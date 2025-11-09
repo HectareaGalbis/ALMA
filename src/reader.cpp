@@ -15,6 +15,8 @@ std::shared_ptr<Object> reader::read(std::istream& input)
     maybe(reader::read_comment(input));
     maybe(reader::read_list(input));
     maybe(reader::read_quote(input));
+    maybe(reader::read_quasiquote(input));
+    maybe(reader::read_unquote(input));
     maybe(reader::read_string(input));
     maybe(reader::read_token(input));
     return nullptr;
@@ -44,7 +46,7 @@ std::shared_ptr<Object> reader::read_comment(std::istream& input)
         if (d == EOF || d == '\n')
             break;
     }
-    return nullptr;
+    return reader::read_whitespace(input);
 }
 
 std::shared_ptr<Object> reader::read_list(std::istream& input)
@@ -66,7 +68,10 @@ std::shared_ptr<Object> reader::read_list(std::istream& input)
     if (rp != ')')
         throw std::runtime_error("Expected the character ')' but found '" + std::string(1, (char)rp) + "'");
 
-    return std::make_shared<Cons>(objects);
+    if (objects.empty())
+        return std::make_shared<Nil>();
+    else
+        return std::make_shared<Cons>(objects);
 }
 
 std::shared_ptr<Object> reader::read_quote(std::istream& input)
@@ -78,6 +83,47 @@ std::shared_ptr<Object> reader::read_quote(std::istream& input)
     }
     std::shared_ptr<Object> object = reader::read(input);
     std::shared_ptr<Symbol> qs = *Package::almaPackage->find_symbol("quote");
+
+    return std::make_shared<Cons>(std::vector<std::shared_ptr<Object>> { qs, object });
+}
+
+static size_t quasiquote_level = 0;
+
+std::shared_ptr<Object> reader::read_quasiquote(std::istream& input)
+{
+    int q = input.get();
+    if (q != '`') {
+        input.unget();
+        return nullptr;
+    }
+    quasiquote_level++;
+    std::shared_ptr<Object> object = reader::read(input);
+    quasiquote_level--;
+    std::shared_ptr<Symbol> qs = *Package::almaPackage->find_symbol("quasiquote");
+
+    return std::make_shared<Cons>(std::vector<std::shared_ptr<Object>> { qs, object });
+}
+
+std::shared_ptr<Object> reader::read_unquote(std::istream& input)
+{
+    int q = input.get();
+    if (q != ',') {
+        input.unget();
+        return nullptr;
+    }
+    bool slice = true;
+    int s = input.get();
+    if (s != '@') {
+        slice = false;
+        input.unget();
+    }
+    if (quasiquote_level == 0)
+        throw std::runtime_error(std::string(slice ? "slice-unquote" : "unquote") + " outside quasiquote");
+
+    quasiquote_level--;
+    std::shared_ptr<Object> object = reader::read(input);
+    quasiquote_level++;
+    std::shared_ptr<Symbol> qs = *Package::almaPackage->find_symbol(slice ? "slice-unquote" : "unquote");
 
     return std::make_shared<Cons>(std::vector<std::shared_ptr<Object>> { qs, object });
 }

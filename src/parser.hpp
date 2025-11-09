@@ -31,7 +31,7 @@ public:
             expressions.push_back(expr);
     }
 
-    void eval(lexical_environment& lex_env)
+    void eval(Environment& lex_env)
     {
         for (std::shared_ptr<Object>& expression : this->expressions) {
             Object::eval(expression, lex_env);
@@ -44,8 +44,7 @@ public:
             std::cout << ";; No values" << std::endl;
         } else {
             for (const std::shared_ptr<Object>& expression : this->expressions) {
-                Object::print(expression);
-                std::cout << std::endl;
+                std::cout << Object::to_string(expression) << std::endl;
             }
         }
     }

@@ -4,23 +4,25 @@
 #include "package.hpp"
 #include <memory>
 
-#define intern_special_operator(name)                                                \
-    std::shared_ptr<Symbol>& name##_so = Package::almaPackage->intern_symbol(#name); \
-    name##_so->function = std::make_shared<name>();
+#define intern_special_operator(name_impl, name)                                         \
+    std::shared_ptr<Symbol>& name_impl##_so = Package::almaPackage->intern_symbol(name); \
+    name_impl##_so->function = std::make_shared<name_impl>();
 
 void intern_special_operators()
 {
-    intern_special_operator(progn);
-    intern_special_operator(let);
-    intern_special_operator(quote);
-    intern_special_operator(lambda);
-    intern_special_operator(gamma);
+    intern_special_operator(progn, "progn");
+    intern_special_operator(let, "let");
+    intern_special_operator(quote, "quote");
+    intern_special_operator(lambda, "lambda");
+    intern_special_operator(gamma, "gamma");
+    intern_special_operator(branch, "if");
+    intern_special_operator(quasiquote, "quasiquote");
 }
 
 // --------------------------------------------------------------------------------
 
 std::shared_ptr<Object> progn::apply(
-    lexical_environment& lex_env [[maybe_unused]],
+    Environment& lex_env [[maybe_unused]],
     const std::vector<std::shared_ptr<Object>>& arguments)
 {
     if (arguments.empty()) {
@@ -57,7 +59,7 @@ static std::vector<std::pair<std::shared_ptr<Symbol>, std::shared_ptr<Object>>> 
 }
 
 static std::vector<std::pair<std::shared_ptr<Symbol>, std::shared_ptr<Object>>> evaluateBindings(
-    lexical_environment& lex_env,
+    Environment& lex_env,
     const std::vector<std::pair<std::shared_ptr<Symbol>, std::shared_ptr<Object>>>& bindings)
 {
     std::vector<std::pair<std::shared_ptr<Symbol>, std::shared_ptr<Object>>> evaluatedBindings;
@@ -70,29 +72,29 @@ static std::vector<std::pair<std::shared_ptr<Symbol>, std::shared_ptr<Object>>> 
 }
 
 std::shared_ptr<Object> let::apply(
-    lexical_environment& lex_env, const std::vector<std::shared_ptr<Object>>& arguments)
+    Environment& lex_env, const std::vector<std::shared_ptr<Object>>& arguments)
 {
     if (arguments.empty())
         throw std::runtime_error("let needs at least a list");
 
     const std::shared_ptr<Cons> bindings = std::dynamic_pointer_cast<Cons>(arguments.front());
-    if (!bindings) {
-        Object::print(arguments.front());
+    if (!bindings)
         throw std::runtime_error("Expected a list.");
-    }
+
     auto parsedBindings = parseBindings(bindings);
     auto evaluatedBindings = evaluateBindings(lex_env, parsedBindings);
 
     if (arguments.size() == 1)
         return std::make_shared<Nil>();
 
-    for (const auto& [var, value] : evaluatedBindings)
-        lex_env.push_value(var, value);
+    lex_env.pushValues(evaluatedBindings.begin(), evaluatedBindings.end());
+
     for (size_t i = 1; i < arguments.size() - 1; i++)
         Object::eval(arguments[i], lex_env);
+
     std::shared_ptr<Object> result = Object::eval(arguments.back(), lex_env);
-    for (const auto& [var, value] : evaluatedBindings)
-        lex_env.pop_value(var);
+
+    lex_env.popValues();
 
     return result;
 }
@@ -100,7 +102,7 @@ std::shared_ptr<Object> let::apply(
 // --------------------------------------------------------------------------------
 
 std::shared_ptr<Object> quote::apply(
-    lexical_environment& lex_env [[maybe_unused]],
+    Environment& lex_env [[maybe_unused]],
     const std::vector<std::shared_ptr<Object>>& arguments)
 {
     if (arguments.size() != 1)
@@ -110,36 +112,105 @@ std::shared_ptr<Object> quote::apply(
 
 // --------------------------------------------------------------------------------
 
+static std::vector<std::shared_ptr<Object>> eval_quasiquote(const std::shared_ptr<Object>& obj,
+    size_t quasi_level, Environment& lex_env)
+{
+    std::shared_ptr<Cons> cons = std::dynamic_pointer_cast<Cons>(obj);
+    if (!cons)
+        return { obj };
+    std::vector<std::shared_ptr<Object>> list = cons->toList();
+    std::shared_ptr<Symbol> sym = std::dynamic_pointer_cast<Symbol>(list[0]);
+    if (sym && sym->name == "quasiquote") {
+        std::vector<std::shared_ptr<Object>> result = { sym };
+        std::vector<std::shared_ptr<Object>> quasi_res = eval_quasiquote(list[1], quasi_level + 1, lex_env);
+        result.insert(result.end(), quasi_res.begin(), quasi_res.end());
+        return { std::make_shared<Cons>(result) };
+    } else if (sym && sym->name == "unquote") {
+        if (quasi_level == 1)
+            return { Object::eval(list[1], lex_env) };
+        else {
+            std::vector<std::shared_ptr<Object>> result = { sym };
+            std::vector<std::shared_ptr<Object>> unquote_res
+                = eval_quasiquote(list[1], quasi_level - 1, lex_env);
+            result.insert(result.end(), unquote_res.begin(), unquote_res.end());
+            return { std::make_shared<Cons>(result) };
+        }
+    } else if (sym && sym->name == "slice-unquote" && quasi_level == 1) {
+        if (quasi_level == 1) {
+            std::shared_ptr<Cons> eval_obj = std::dynamic_pointer_cast<Cons>(Object::eval(list[1], lex_env));
+            if (!eval_obj)
+                throw std::runtime_error("The result of slice-unquote must be a list.");
+            return eval_obj->toList();
+        } else {
+            std::vector<std::shared_ptr<Object>> result = { sym };
+            std::vector<std::shared_ptr<Object>> unquote_res
+                = eval_quasiquote(list[1], quasi_level - 1, lex_env);
+            result.insert(result.end(), unquote_res.begin(), unquote_res.end());
+            return { std::make_shared<Cons>(result) };
+        }
+    } else {
+        std::vector<std::shared_ptr<Object>> result_list;
+        for (std::shared_ptr<Object>& elem : list) {
+            std::vector<std::shared_ptr<Object>> result_elem = eval_quasiquote(elem, quasi_level, lex_env);
+            result_list.insert(result_list.end(), result_elem.begin(), result_elem.end());
+        }
+        return { std::make_shared<Cons>(result_list) };
+    }
+}
+
+std::shared_ptr<Object> quasiquote::apply(
+    Environment& lex_env,
+    const std::vector<std::shared_ptr<Object>>& arguments)
+{
+    if (arguments.size() != 1)
+        throw std::runtime_error("Expected only one argument.");
+
+    std::shared_ptr<Cons> list = std::dynamic_pointer_cast<Cons>(arguments[0]);
+
+    if (!list)
+        return arguments[0];
+    else {
+        std::vector<std::shared_ptr<Object>> res = eval_quasiquote(arguments[0], 1, lex_env);
+        if (res.size() > 1)
+            throw std::runtime_error("Used slice-unquote at the top of quasiquote");
+        return res[0];
+    }
+}
+
+// --------------------------------------------------------------------------------
+
 std::shared_ptr<Object> lambda::apply(
-    lexical_environment& lex_env [[maybe_unused]],
+    Environment& lex_env,
     const std::vector<std::shared_ptr<Object>>& arguments)
 {
     if (arguments.size() < 1)
         throw std::runtime_error("Expected at least one argument.");
 
-    std::shared_ptr<Cons> func_args = std::dynamic_pointer_cast<Cons>(arguments[0]);
-    if (!func_args)
-        throw std::runtime_error("Expected a list of symbols.");
-
     std::vector<std::shared_ptr<Symbol>> func_arg_symbols;
-    for (std::shared_ptr<Object>& func_arg : func_args->toList()) {
-        std::shared_ptr<Symbol> func_arg_symbol = std::dynamic_pointer_cast<Symbol>(func_arg);
-        if (!func_arg_symbol)
-            throw std::runtime_error("Expected a symbol as an argument.");
-        func_arg_symbols.push_back(func_arg_symbol);
+    std::shared_ptr<Nil> no_args = std::dynamic_pointer_cast<Nil>(arguments[0]);
+    if (!no_args) {
+        std::shared_ptr<Cons> func_args = std::dynamic_pointer_cast<Cons>(arguments[0]);
+        if (!func_args)
+            throw std::runtime_error("Expected a list of symbols.");
+        for (std::shared_ptr<Object>& func_arg : func_args->toList()) {
+            std::shared_ptr<Symbol> func_arg_symbol = std::dynamic_pointer_cast<Symbol>(func_arg);
+            if (!func_arg_symbol)
+                throw std::runtime_error("Expected a symbol as an argument.");
+            func_arg_symbols.push_back(func_arg_symbol);
+        }
     }
 
     std::vector<std::shared_ptr<Object>> body;
     for (size_t i = 1; i < arguments.size(); i++)
         body.push_back(arguments[i]);
 
-    return std::make_shared<FunctionUser>("<lambda>", func_arg_symbols, body);
+    return std::make_shared<FunctionUser>("<lambda>", lex_env, func_arg_symbols, body);
 }
 
 // --------------------------------------------------------------------------------
 
 std::shared_ptr<Object> gamma::apply(
-    lexical_environment& lex_env [[maybe_unused]],
+    Environment& lex_env,
     const std::vector<std::shared_ptr<Object>>& arguments)
 {
     if (arguments.size() < 1)
@@ -161,5 +232,24 @@ std::shared_ptr<Object> gamma::apply(
     for (size_t i = 1; i < arguments.size(); i++)
         body.push_back(arguments[i]);
 
-    return std::make_shared<MacroUser>("<lambda>", macro_arg_symbols, body);
+    return std::make_shared<MacroUser>("<lambda>", lex_env, macro_arg_symbols, body);
+}
+
+// --------------------------------------------------------------------------------
+
+std::shared_ptr<Object> branch::apply(
+    Environment& lex_env,
+    const std::vector<std::shared_ptr<Object>>& arguments)
+{
+    if (arguments.size() != 2 && arguments.size() != 3)
+        throw std::runtime_error("Expected at two or three arguments.");
+
+    if (Object::is_true(Object::eval(arguments[0], lex_env))) {
+        return Object::eval(arguments[1], lex_env);
+    } else {
+        if (arguments.size() == 3)
+            return Object::eval(arguments[2], lex_env);
+        else
+            return std::make_shared<Nil>();
+    }
 }

@@ -8,19 +8,19 @@
 
 class Object {
 public:
-    static std::shared_ptr<Object> eval(const std::shared_ptr<Object>& obj, lexical_environment& lex_env);
+    static std::shared_ptr<Object> eval(const std::shared_ptr<Object>& obj, Environment& lex_env);
     static void emit(const std::shared_ptr<Object>& obj);
-    static void print(const std::shared_ptr<Object>& obj);
+    static std::string to_string(const std::shared_ptr<Object>& obj);
     static bool is_true(const std::shared_ptr<Object>& obj);
     static bool eq(const std::shared_ptr<Object>& obj1, const std::shared_ptr<Object>& obj2);
     static bool typep(const std::shared_ptr<Object>& obj, const std::shared_ptr<Symbol>& sym);
 
 protected:
     virtual std::shared_ptr<Object> eval_impl(
-        const std::shared_ptr<Object>& obj, lexical_environment& lex_env) const
+        const std::shared_ptr<Object>& obj, Environment& lex_env) const
         = 0;
     virtual void emit_impl() const = 0;
-    virtual void print_impl() const = 0;
+    virtual std::string to_string_impl() const = 0;
     virtual operator bool() const { return true; }
     virtual bool typep_impl(const std::shared_ptr<Symbol>& sym) const = 0;
 };
@@ -32,9 +32,9 @@ struct Integer : Object {
     Integer(int64_t _value);
 
     virtual std::shared_ptr<Object> eval_impl(
-        const std::shared_ptr<Object>& obj, lexical_environment& lex_env) const override;
+        const std::shared_ptr<Object>& obj, Environment& lex_env) const override;
     virtual void emit_impl() const override;
-    virtual void print_impl() const override;
+    virtual std::string to_string_impl() const override;
     virtual bool typep_impl(const std::shared_ptr<Symbol>& sym) const override;
 };
 
@@ -45,9 +45,9 @@ struct String : Object {
     String(const std::string& content);
 
     virtual std::shared_ptr<Object> eval_impl(
-        const std::shared_ptr<Object>& obj, lexical_environment& lex_env) const override;
+        const std::shared_ptr<Object>& obj, Environment& lex_env) const override;
     virtual void emit_impl() const override;
-    virtual void print_impl() const override;
+    virtual std::string to_string_impl() const override;
     virtual bool typep_impl(const std::shared_ptr<Symbol>& sym) const override;
 };
 
@@ -64,12 +64,12 @@ struct Procedure : Object {
     }
 
     virtual std::shared_ptr<Object> eval_impl(
-        const std::shared_ptr<Object>& obj, lexical_environment& lex_env) const override;
+        const std::shared_ptr<Object>& obj, Environment& lex_env) const override;
     virtual void emit_impl() const override;
-    virtual void print_impl() const override;
+    virtual std::string to_string_impl() const override;
     virtual bool typep_impl(const std::shared_ptr<Symbol>& sym) const override;
 
-    virtual std::shared_ptr<Object> apply(lexical_environment& lex_env,
+    virtual std::shared_ptr<Object> apply(Environment& lex_env,
         const std::vector<std::shared_ptr<Object>>& arguments)
         = 0;
 };
@@ -84,28 +84,30 @@ struct Function : Procedure {
 private:
     static std::vector<std::shared_ptr<Object>> eval_args(
         const std::vector<std::shared_ptr<Object>>& args,
-        lexical_environment& lex_env);
+        Environment& lex_env);
 
 protected:
     virtual std::shared_ptr<Object> eval_body(
-        const std::vector<std::shared_ptr<Object>>& args, lexical_environment& lex_env) const
+        const std::vector<std::shared_ptr<Object>>& args, Environment& lex_env)
         = 0;
 
 public:
     virtual std::shared_ptr<Object> apply(
-        lexical_environment& lex_env, const std::vector<std::shared_ptr<Object>>& arguments) override;
+        Environment& lex_env, const std::vector<std::shared_ptr<Object>>& arguments) override;
 
     virtual bool typep_impl(const std::shared_ptr<Symbol>& sym) const override;
 };
 
 struct FunctionUser : Function {
+    Environment closure;
     std::vector<std::shared_ptr<Symbol>> params;
     std::vector<std::shared_ptr<Object>> body;
 
     FunctionUser(const FunctionUser& other) = default;
-    template <typename Name, typename Params, typename Body>
-    FunctionUser(Name&& _name, Params&& _params, Body&& _body)
+    template <typename Name, typename Closure, typename Params, typename Body>
+    FunctionUser(Name&& _name, Closure&& _closure, Params&& _params, Body&& _body)
         : Function(std::forward<Name>(_name))
+        , closure(_closure)
         , params(std::forward<Params>(_params))
         , body(std::forward<Body>(_body))
     {
@@ -113,7 +115,7 @@ struct FunctionUser : Function {
 
 protected:
     virtual std::shared_ptr<Object> eval_body(
-        const std::vector<std::shared_ptr<Object>>& args, lexical_environment& lex_env) const override;
+        const std::vector<std::shared_ptr<Object>>& args, Environment& lex_env) override;
     virtual bool typep_impl(const std::shared_ptr<Symbol>& sym) const override;
 };
 
@@ -126,24 +128,27 @@ struct Macro : Procedure {
 
 protected:
     virtual std::shared_ptr<Object> eval_body(
-        const std::vector<std::shared_ptr<Object>>& args, lexical_environment& lex_env) const
+        const std::vector<std::shared_ptr<Object>>& args, Environment& lex_env)
         = 0;
 
 public:
     virtual std::shared_ptr<Object> apply(
-        lexical_environment& lex_env, const std::vector<std::shared_ptr<Object>>& arguments) override;
+        Environment& lex_env, const std::vector<std::shared_ptr<Object>>& arguments) override;
+    std::shared_ptr<Object> expand(Environment& lex_env, const std::vector<std::shared_ptr<Object>>& arguments);
 
     virtual bool typep_impl(const std::shared_ptr<Symbol>& sym) const override;
 };
 
 struct MacroUser : Macro {
+    Environment closure;
     std::vector<std::shared_ptr<Symbol>> params;
     std::vector<std::shared_ptr<Object>> body;
 
     MacroUser(const MacroUser& other) = default;
-    template <typename Name, typename Params, typename Body>
-    MacroUser(Name&& _name, Params&& _params, Body&& _body)
+    template <typename Name, typename Closure, typename Params, typename Body>
+    MacroUser(Name&& _name, Closure&& _closure, Params&& _params, Body&& _body)
         : Macro(std::forward<Name>(_name))
+        , closure(_closure)
         , params(std::forward<Params>(_params))
         , body(std::forward<Body>(_body))
     {
@@ -151,7 +156,7 @@ struct MacroUser : Macro {
 
 protected:
     virtual std::shared_ptr<Object> eval_body(
-        const std::vector<std::shared_ptr<Object>>& args, lexical_environment& lex_env) const override;
+        const std::vector<std::shared_ptr<Object>>& args, Environment& lex_env) override;
     virtual bool typep_impl(const std::shared_ptr<Symbol>& sym) const override;
 };
 
@@ -165,9 +170,9 @@ struct Symbol : Object {
     Symbol(const std::string& _name);
 
     virtual std::shared_ptr<Object> eval_impl(
-        const std::shared_ptr<Object>& obj, lexical_environment& lex_env) const override;
+        const std::shared_ptr<Object>& obj, Environment& lex_env) const override;
     virtual void emit_impl() const override;
-    virtual void print_impl() const override;
+    virtual std::string to_string_impl() const override;
     virtual bool typep_impl(const std::shared_ptr<Symbol>& sym) const override;
 };
 
@@ -182,9 +187,9 @@ struct Cons : Object {
     std::vector<std::shared_ptr<Object>> toList() const;
 
     virtual std::shared_ptr<Object> eval_impl(
-        const std::shared_ptr<Object>& obj, lexical_environment& lex_env) const override;
+        const std::shared_ptr<Object>& obj, Environment& lex_env) const override;
     virtual void emit_impl() const override;
-    virtual void print_impl() const override;
+    virtual std::string to_string_impl() const override;
     virtual bool typep_impl(const std::shared_ptr<Symbol>& sym) const override;
 };
 
@@ -195,9 +200,9 @@ struct Nil : Object {
     }
 
     virtual std::shared_ptr<Object> eval_impl(
-        const std::shared_ptr<Object>& obj, lexical_environment& lex_env) const override;
+        const std::shared_ptr<Object>& obj, Environment& lex_env) const override;
     virtual void emit_impl() const override { }
     virtual operator bool() const override { return false; }
-    virtual void print_impl() const override;
+    virtual std::string to_string_impl() const override;
     virtual bool typep_impl(const std::shared_ptr<Symbol>& sym) const override;
 };

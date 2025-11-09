@@ -33,14 +33,14 @@ void Package::emit_impl() const
 }
 
 std::shared_ptr<Object> Package::eval_impl(
-    const std::shared_ptr<Object>& obj, lexical_environment& lex_env [[maybe_unused]]) const
+    const std::shared_ptr<Object>& obj, Environment& lex_env [[maybe_unused]]) const
 {
     return obj;
 }
 
-void Package::print_impl() const
+std::string Package::to_string_impl() const
 {
-    std::cout << "<package>" << std::endl;
+    return "<package>";
 }
 
 bool Package::typep_impl(const std::shared_ptr<Symbol>& sym) const

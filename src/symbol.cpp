@@ -5,13 +5,11 @@
 
 void intern_symbols()
 {
+    Package::almaPackage->intern_symbol("unquote");
+    Package::almaPackage->intern_symbol("slice-unquote");
+
     std::shared_ptr<Symbol> current_package_sym = Package::almaPackage->intern_symbol("*current-package*");
     current_package_sym->values = { Package::currentPackage };
-
-    std::shared_ptr<Symbol> casa_sym = Package::almaPackage->intern_symbol("casa");
-    casa_sym->package = std::make_shared<Package>();
-    std::shared_ptr<Symbol> pera = casa_sym->package->intern_symbol("pera");
-    pera->values = { std::make_shared<Integer>(5) };
 
     std::shared_ptr<Symbol> t_sym = Package::almaPackage->intern_symbol("t");
     t_sym->values = { t_sym };

@@ -1,16 +1,18 @@
 
 #include "objects.hpp"
 #include "emitter.hpp"
-#include "package.hpp"
+#include "util.hpp"
 #include <iostream>
 #include <optional>
 
 // --------------------------------------------------------------------------------
 
 std::shared_ptr<Object> Object::eval(
-    const std::shared_ptr<Object>& obj, lexical_environment& lex_env)
+    const std::shared_ptr<Object>& obj, Environment& lex_env)
 {
-    return obj->eval_impl(obj, lex_env);
+    // debugMsg("Eval: " << Object::to_string(obj));
+    std::shared_ptr<Object> r = obj->eval_impl(obj, lex_env);
+    return r;
 }
 
 void Object::emit(const std::shared_ptr<Object>& obj)
@@ -18,9 +20,9 @@ void Object::emit(const std::shared_ptr<Object>& obj)
     obj->emit_impl();
 }
 
-void Object::print(const std::shared_ptr<Object>& obj)
+std::string Object::to_string(const std::shared_ptr<Object>& obj)
 {
-    obj->print_impl();
+    return obj->to_string_impl();
 }
 
 bool Object::is_true(const std::shared_ptr<Object>& obj)
@@ -46,7 +48,7 @@ Integer::Integer(int64_t _value)
 }
 
 std::shared_ptr<Object> Integer::eval_impl(
-    const std::shared_ptr<Object>& obj, lexical_environment& lex_env [[maybe_unused]]) const
+    const std::shared_ptr<Object>& obj, Environment& lex_env [[maybe_unused]]) const
 {
     return obj;
 }
@@ -56,9 +58,9 @@ void Integer::emit_impl() const
     Emitter::emit(this->value);
 }
 
-void Integer::print_impl() const
+std::string Integer::to_string_impl() const
 {
-    std::cout << this->value;
+    return std::to_string(this->value);
 }
 
 bool Integer::typep_impl(const std::shared_ptr<Symbol>& sym) const
@@ -74,7 +76,7 @@ String::String(const std::string& _content)
 }
 
 std::shared_ptr<Object> String::eval_impl(
-    const std::shared_ptr<Object>& obj, lexical_environment& lex_env [[maybe_unused]]) const
+    const std::shared_ptr<Object>& obj, Environment& lex_env [[maybe_unused]]) const
 {
     return obj;
 }
@@ -84,9 +86,9 @@ void String::emit_impl() const
     Emitter::emit(this->content);
 }
 
-void String::print_impl() const
+std::string String::to_string_impl() const
 {
-    std::cout << this->content;
+    return this->content;
 }
 
 bool String::typep_impl(const std::shared_ptr<Symbol>& sym) const
@@ -97,7 +99,7 @@ bool String::typep_impl(const std::shared_ptr<Symbol>& sym) const
 // --------------------------------------------------------------------------------
 
 std::shared_ptr<Object> Procedure::eval_impl(
-    const std::shared_ptr<Object>& obj, lexical_environment& lex_env [[maybe_unused]]) const
+    const std::shared_ptr<Object>& obj, Environment& lex_env [[maybe_unused]]) const
 {
     return obj;
 }
@@ -107,13 +109,15 @@ void Procedure::emit_impl() const
     throw std::runtime_error("A procedure cannot be emitted");
 }
 
-void Procedure::print_impl() const
+std::string Procedure::to_string_impl() const
 {
-    std::cout << "<";
-    std::cout << std::hex << this;
+    std::stringstream s;
+    s << "<";
+    s << std::hex << this;
     if (this->name)
-        std::cout << " " << *this->name;
-    std::cout << ">";
+        s << " " << *this->name;
+    s << ">";
+    return s.str();
 }
 
 bool Procedure::typep_impl(const std::shared_ptr<Symbol>& sym) const
@@ -122,7 +126,7 @@ bool Procedure::typep_impl(const std::shared_ptr<Symbol>& sym) const
 }
 
 std::vector<std::shared_ptr<Object>> Function::eval_args(
-    const std::vector<std::shared_ptr<Object>>& args, lexical_environment& lex_env)
+    const std::vector<std::shared_ptr<Object>>& args, Environment& lex_env)
 {
     std::vector<std::shared_ptr<Object>> evaluated_args;
     evaluated_args.reserve(args.size());
@@ -134,7 +138,7 @@ std::vector<std::shared_ptr<Object>> Function::eval_args(
 }
 
 std::shared_ptr<Object> Function::apply(
-    lexical_environment& lex_env, const std::vector<std::shared_ptr<Object>>& arguments)
+    Environment& lex_env, const std::vector<std::shared_ptr<Object>>& arguments)
 {
     std::vector<std::shared_ptr<Object>> evaluated_args = eval_args(arguments, lex_env);
     return this->eval_body(evaluated_args, lex_env);
@@ -146,21 +150,19 @@ bool Function::typep_impl(const std::shared_ptr<Symbol>& sym) const
 }
 
 std::shared_ptr<Object> FunctionUser::eval_body(
-    const std::vector<std::shared_ptr<Object>>& args, lexical_environment& lex_env) const
+    const std::vector<std::shared_ptr<Object>>& args, Environment& lex_env [[maybe_unused]])
 {
     if (this->params.size() != args.size())
         throw std::runtime_error("Needed " + std::to_string(this->params.size()) + " but received " + std::to_string(args.size()) + " params");
-    for (size_t i = 0; i < args.size(); i++) {
-        lex_env.push_value(this->params[i], args[i]);
-    }
-    for (size_t i = 0; i < this->body.size() - 1; i++) {
-        Object::eval(this->body[i], lex_env);
-    }
-    std::shared_ptr<Object> result = Object::eval(this->body.back(), lex_env);
 
-    for (size_t i = 0; i < args.size(); i++) {
-        lex_env.pop_value(this->params[i]);
+    this->closure.pushValues(this->params, args);
+
+    for (size_t i = 0; i < this->body.size() - 1; i++) {
+        Object::eval(this->body[i], this->closure);
     }
+    std::shared_ptr<Object> result = Object::eval(this->body.back(), this->closure);
+
+    this->closure.popValues();
 
     return result;
 }
@@ -171,10 +173,15 @@ bool FunctionUser::typep_impl(const std::shared_ptr<Symbol>& sym) const
 }
 
 std::shared_ptr<Object> Macro::apply(
-    lexical_environment& lex_env, const std::vector<std::shared_ptr<Object>>& arguments)
+    Environment& lex_env, const std::vector<std::shared_ptr<Object>>& arguments)
 {
     std::shared_ptr<Object> result = this->eval_body(arguments, lex_env);
     return Object::eval(result, lex_env);
+}
+
+std::shared_ptr<Object> Macro::expand(Environment& lex_env, const std::vector<std::shared_ptr<Object>>& arguments)
+{
+    return this->eval_body(arguments, lex_env);
 }
 
 bool Macro::typep_impl(const std::shared_ptr<Symbol>& sym) const
@@ -183,21 +190,19 @@ bool Macro::typep_impl(const std::shared_ptr<Symbol>& sym) const
 }
 
 std::shared_ptr<Object> MacroUser::eval_body(
-    const std::vector<std::shared_ptr<Object>>& args, lexical_environment& lex_env) const
+    const std::vector<std::shared_ptr<Object>>& args, Environment& lex_env [[maybe_unused]])
 {
     if (this->params.size() != args.size())
         throw std::runtime_error("Needed " + std::to_string(this->params.size()) + " but received " + std::to_string(args.size()) + " params");
-    for (size_t i = 0; i < args.size(); i++) {
-        lex_env.push_value(this->params[i], args[i]);
-    }
-    for (size_t i = 0; i < this->body.size() - 1; i++) {
-        Object::eval(this->body[i], lex_env);
-    }
-    std::shared_ptr<Object> result = Object::eval(this->body.back(), lex_env);
 
-    for (size_t i = 0; i < args.size(); i++) {
-        lex_env.pop_value(this->params[i]);
+    this->closure.pushValues(this->params, args);
+
+    for (size_t i = 0; i < this->body.size() - 1; i++) {
+        Object::eval(this->body[i], this->closure);
     }
+    std::shared_ptr<Object> result = Object::eval(this->body.back(), this->closure);
+
+    this->closure.popValues();
 
     return result;
 }
@@ -215,11 +220,11 @@ Symbol::Symbol(const std::string& _name)
 }
 
 std::shared_ptr<Object> Symbol::eval_impl(
-    const std::shared_ptr<Object>& obj, lexical_environment& lex_env) const
+    const std::shared_ptr<Object>& obj, Environment& lex_env) const
 {
     std::shared_ptr<Symbol> self = std::dynamic_pointer_cast<Symbol>(obj);
-    if (lex_env.is_symbol_bound(self))
-        return lex_env.get_value(self);
+    if (lex_env.isSymbolBound(self))
+        return lex_env.getValue(self);
     else {
         if (this->values.empty())
             throw std::runtime_error("Symbol " + this->name + " unbound.");
@@ -232,9 +237,9 @@ void Symbol::emit_impl() const
     Emitter::emit(this->name);
 }
 
-void Symbol::print_impl() const
+std::string Symbol::to_string_impl() const
 {
-    std::cout << this->name;
+    return this->name;
 }
 
 bool Symbol::typep_impl(const std::shared_ptr<Symbol>& sym) const
@@ -286,11 +291,11 @@ std::vector<std::shared_ptr<Object>> Cons::toList() const
 }
 
 std::shared_ptr<Object> Cons::eval_impl(
-    const std::shared_ptr<Object>& obj [[maybe_unused]], lexical_environment& lex_env) const
+    const std::shared_ptr<Object>& obj [[maybe_unused]], Environment& lex_env) const
 {
-    std::shared_ptr<Symbol> func_name = std::dynamic_pointer_cast<Symbol>(car);
+    std::shared_ptr<Symbol> func_name = std::dynamic_pointer_cast<Symbol>(this->car);
     if (!func_name)
-        throw std::runtime_error("Expected a symbol denoting a procedure.");
+        throw std::runtime_error("Expected a symbol denoting a procedure. Found a " + Object::to_string(this->car));
     if (!func_name->function)
         throw std::runtime_error("The symbol " + func_name->name + " does not denote a procedure.");
 
@@ -300,6 +305,7 @@ std::shared_ptr<Object> Cons::eval_impl(
         std::shared_ptr<Cons> arguments = std::dynamic_pointer_cast<Cons>(this->cdr);
         if (!arguments)
             throw std::runtime_error("Arguments must form a list");
+
         return func_name->function->apply(lex_env, arguments->toList());
     }
 }
@@ -310,24 +316,27 @@ void Cons::emit_impl() const
     Emitter::emit(this->cdr);
 }
 
-void Cons::print_impl() const
+std::string Cons::to_string_impl() const
 {
-    std::cout << "(";
-    Object::print(this->car);
+    std::stringstream s;
+    s << "(";
+    s << Object::to_string(this->car);
     std::shared_ptr<Object> listIt = this->cdr;
     while (Object::is_true(listIt)) {
-        std::cout << " ";
+        s << " ";
         std::shared_ptr<Cons> maybeCons = std::dynamic_pointer_cast<Cons>(listIt);
         if (maybeCons) {
-            Object::print(maybeCons->car);
+            s << Object::to_string(maybeCons->car);
             listIt = maybeCons->cdr;
         } else {
-            std::cout << ". ";
-            Object::print(listIt);
+            s << ". ";
+            s << Object::to_string(listIt);
             break;
         }
     }
-    std::cout << ")";
+    s << ")";
+
+    return s.str();
 }
 
 bool Cons::typep_impl(const std::shared_ptr<Symbol>& sym) const
@@ -338,14 +347,14 @@ bool Cons::typep_impl(const std::shared_ptr<Symbol>& sym) const
 // --------------------------------------------------------------------------------
 
 std::shared_ptr<Object> Nil::eval_impl(
-    const std::shared_ptr<Object>& obj, lexical_environment& lex_env [[maybe_unused]]) const
+    const std::shared_ptr<Object>& obj, Environment& lex_env [[maybe_unused]]) const
 {
     return obj;
 }
 
-void Nil::print_impl() const
+std::string Nil::to_string_impl() const
 {
-    std::cout << "nil";
+    return "nil";
 }
 
 bool Nil::typep_impl(const std::shared_ptr<Symbol>& sym) const

@@ -1,6 +1,8 @@
 
+
 #include "emitter.hpp"
 #include "function.hpp"
+#include "macro.hpp"
 #include "parser.hpp"
 #include "special_operator.hpp"
 #include "symbol.hpp"
@@ -11,14 +13,14 @@ void showUsage()
 {
     std::string message;
     message = R"END(
-ALMA  Copyright (C) 2025  Héctor Galbis Sanchis
+ ALMA  Copyright (C) 2025  Héctor Galbis Sanchis
 
-This is the ALMA compiler. This is for now a proof of concept.
+ This is the ALMA compiler. This is for now a proof of concept.
 
-Usage:
+ Usage:
 
-  alma [input [output]]
-)END";
+   alma [input [output]]
+ )END";
 
     std::cout << message << std::endl;
 }
@@ -40,10 +42,11 @@ int main(int argc, char* argv[])
     Package::initAlmaPackage();
     intern_special_operators();
     intern_functions();
+    intern_macros();
     intern_symbols();
 
     try {
-        lexical_environment lex_env;
+        Environment lex_env;
         ast ast;
         ast.read(file);
         // ast.print();

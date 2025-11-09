@@ -3,14 +3,14 @@
 
 #include "objects.hpp"
 
-void intern_functions();
+void intern_macros();
 
-#define declare_function(name)                                                                      \
-    class name : public Function {                                                                  \
+#define declare_macro(name)                                                                         \
+    class name : public Macro {                                                                     \
     public:                                                                                         \
         template <typename Name>                                                                    \
         name(Name&& _n)                                                                             \
-            : Function(std::forward<Name>(_n))                                                      \
+            : Macro(std::forward<Name>(_n))                                                         \
         {                                                                                           \
         }                                                                                           \
                                                                                                     \
@@ -19,16 +19,5 @@ void intern_functions();
             Environment& lex_env) override;                                                         \
     }
 
-declare_function(sum);
-declare_function(print);
-declare_function(typep);
-declare_function(set_symbol_function);
-declare_function(set_symbol_package);
-declare_function(setq);
-declare_function(emit);
-declare_function(car);
-declare_function(cdr);
-declare_function(eq);
-declare_function(eql);
-declare_function(macroexpand_1);
-declare_function(eval);
+declare_macro(defun);
+declare_macro(defmacro);
