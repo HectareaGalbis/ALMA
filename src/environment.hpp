@@ -1,29 +1,30 @@
 
 #pragma once
 
-#include <map>
+#include "object.hpp"
 #include <memory>
+#include <unordered_map>
 #include <vector>
 
 struct Symbol;
 class Object;
 
-class Environment {
+class Environment : public Object {
 private:
-    class EnvironmentLayer {
+    class EnvironmentLayer : public Object {
     private:
-        std::map<std::shared_ptr<Symbol>, std::shared_ptr<Object>> values;
+        std::unordered_map<ObjectRef<Symbol>, ObjectRef<Object>> values;
 
     public:
         template <typename InputIt>
         void insert(InputIt start, InputIt end);
-        bool isSymbolBound(const std::shared_ptr<Symbol>& symbol) const;
-        void setValue(const std::shared_ptr<Symbol>& symbol, const std::shared_ptr<Object>& value);
-        std::shared_ptr<Object> getValue(const std::shared_ptr<Symbol>& symbol) const;
+        bool isSymbolBound(ObjectWeakRef<Symbol> symbol) const;
+        void setValue(ObjectWeakRef<Symbol> symbol, ObjectWeakRef<Symbol> value);
+        ObjectWeakRef<Symbol> getValue(ObjectWeakRef<Symbol> symbol) const;
     };
 
 private:
-    std::vector<std::shared_ptr<EnvironmentLayer>> values;
+    std::vector<ObjectRef<EnvironmentLayer>> values;
 
 public:
     bool isSymbolBound(const std::shared_ptr<Symbol>& symbol) const;
