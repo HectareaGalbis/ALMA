@@ -19,7 +19,7 @@ ObjectWeakRef<Object> Package::intern_symbol(const std::string& name, Alma& alma
     return this->symbols[name];
 }
 
-bool Package::typep(ObjectWeakRef<Object> self [[maybe_unused]], ObjectWeakRef<Object> type, Alma& alma)
+bool Package::typep(ObjectWeakRef<Object> self [[maybe_unused]], ObjectWeakRef<Object> type, Alma& alma) const
 {
     return type == alma.alma_package->find_symbol("package", alma);
 }

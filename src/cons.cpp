@@ -1,97 +1,169 @@
 
 #include "cons.hpp"
+#include "alma.hpp"
+#include "debug.hpp"
+#include "package.hpp"
+#include "procedure.hpp"
+#include "symbol.hpp"
 
-Cons::Cons(const std::shared_ptr<Object>& _car, const std::shared_ptr<Object>& _cdr)
-    : car(_car)
-    , cdr(_cdr)
+void Cons::iterator::increment()
 {
-}
+    massert(this->ref, "The iterator has ended");
 
-static std::shared_ptr<Cons> makeConsFromList(const std::vector<std::shared_ptr<Object>>& list,
-    size_t currentIndex)
-{
-    if (currentIndex == list.size() - 1) {
-        return std::make_shared<Cons>(list[currentIndex], std::make_shared<Nil>());
+    ObjectWeakRef<Cons> cons_ref = *this->ref;
+
+    if (alma.consp(cons_ref->cdr)) {
+        this->ref = cons_ref->cdr.as<Cons>();
+    } else if (alma.null(cons_ref->cdr)) {
+        this->ref = std::nullopt;
     } else {
-        return std::make_shared<Cons>(list[currentIndex], makeConsFromList(list, currentIndex + 1));
+        mthrow("The cons is not a proper list");
     }
 }
 
-Cons::Cons(const std::vector<std::shared_ptr<Object>>& list)
+Cons::iterator::iterator(Alma& _alma)
+    : alma(_alma)
 {
-    if (list.empty())
-        throw std::runtime_error("The list is empty");
-
-    std::shared_ptr<Cons> newCons = makeConsFromList(list, 0);
-    this->car = newCons->car;
-    this->cdr = newCons->cdr;
 }
 
-std::vector<std::shared_ptr<Object>> Cons::toList() const
+Cons::iterator::iterator(ObjectWeakRef<Cons> _ref, Alma& _alma)
+    : alma(_alma)
+    , ref(_ref)
 {
-    std::vector<std::shared_ptr<Object>> list;
-    list.push_back(this->car);
-    std::shared_ptr<Object> argIt = this->cdr;
-    while (Object::is_true(argIt)) {
-        std::shared_ptr<Cons> consIt = std::dynamic_pointer_cast<Cons>(argIt);
-        if (!consIt)
-            throw std::runtime_error("Error: Not a proper list.");
-        list.push_back(consIt->car);
-        argIt = consIt->cdr;
-    }
-    return list;
 }
 
-std::shared_ptr<Object> Cons::eval_impl(
-    const std::shared_ptr<Object>& obj [[maybe_unused]], Environment& lex_env) const
+Cons::iterator::iterator(const iterator& other)
+    : alma(other.alma)
+    , ref(other.ref)
 {
-    std::shared_ptr<Symbol> func_name = std::dynamic_pointer_cast<Symbol>(this->car);
-    if (!func_name)
-        throw std::runtime_error("Expected a symbol denoting a procedure. Found a " + Object::to_string(this->car));
-    if (!func_name->function)
-        throw std::runtime_error("The symbol " + func_name->name + " does not denote a procedure.");
-
-    if (!Object::is_true(this->cdr)) {
-        return func_name->function->apply(lex_env, {});
-    } else {
-        std::shared_ptr<Cons> arguments = std::dynamic_pointer_cast<Cons>(this->cdr);
-        if (!arguments)
-            throw std::runtime_error("Arguments must form a list");
-
-        return func_name->function->apply(lex_env, arguments->toList());
-    }
 }
 
-void Cons::emit_impl() const
+Cons::iterator& Cons::iterator::operator=(const iterator& other)
 {
-    Emitter::emit(this->car);
-    Emitter::emit(this->cdr);
+    this->ref = other.ref;
 }
 
-std::string Cons::to_string_impl() const
+Cons::iterator& Cons::iterator::operator++()
+{
+    this->increment();
+    return *this;
+}
+
+Cons::iterator Cons::iterator::operator++(int)
+{
+    iterator old(*this);
+    this->increment();
+    return old;
+}
+
+bool Cons::iterator::operator==(const iterator& other) const
+{
+    return this->ref == other.ref;
+}
+
+bool Cons::iterator::operator!=(const iterator& other) const
+{
+    return this->ref != other.ref;
+}
+
+Object& Cons::iterator::operator*()
+{
+    massert(this->ref, "Cannot dereference. The iterator has ended");
+    return *(*this->ref)->car;
+}
+
+Object* Cons::iterator::operator->()
+{
+    massert(this->ref, "Cannot dereference. The iterator has ended");
+    return (*this->ref)->car.get();
+}
+
+// --------------------------------------------------------------------------------
+
+Cons::Cons(ObjectWeakRef<Object> _car, ObjectWeakRef<Object> _cdr)
+    : car(*this, _car)
+    , cdr(*this, _cdr)
+{
+}
+
+// static std::shared_ptr<Cons> makeConsFromList(const std::vector<std::shared_ptr<Object>>& list,
+//     size_t currentIndex)
+// {
+//     if (currentIndex == list.size() - 1) {
+//         return std::make_shared<Cons>(list[currentIndex], std::make_shared<Nil>());
+//     } else {
+//         return std::make_shared<Cons>(list[currentIndex], makeConsFromList(list, currentIndex + 1));
+//     }
+// }
+
+// Cons::Cons(const std::vector<std::shared_ptr<Object>>& list)
+// {
+//     if (list.empty())
+//         throw std::runtime_error("The list is empty");
+
+//     std::shared_ptr<Cons> newCons = makeConsFromList(list, 0);
+//     this->car = newCons->car;
+//     this->cdr = newCons->cdr;
+// }
+
+// std::vector<std::shared_ptr<Object>> Cons::toList() const
+// {
+//     std::vector<std::shared_ptr<Object>> list;
+//     list.push_back(this->car);
+//     std::shared_ptr<Object> argIt = this->cdr;
+//     while (Object::is_true(argIt)) {
+//         std::shared_ptr<Cons> consIt = std::dynamic_pointer_cast<Cons>(argIt);
+//         if (!consIt)
+//             throw std::runtime_error("Error: Not a proper list.");
+//         list.push_back(consIt->car);
+//         argIt = consIt->cdr;
+//     }
+//     return list;
+// }
+
+ObjectWeakRef<Object> Cons::eval(ObjectWeakRef<Object> self, Alma& alma) const
+{
+    massert(alma.symbolp(this->car), "Expected a symbol denoting a procedure. Found a " << alma.to_string(this->car));
+
+    ObjectWeakRef<Symbol> sym = this->car.as<Symbol>();
+    massert(sym->get_function(), "The symbol " << sym->get_name() << " does not denote a procedure.");
+
+    sym->get_function()->apply(this->cdr, alma);
+}
+
+std::string Cons::to_string(ObjectWeakRef<Object> self, Alma& alma) const
 {
     std::stringstream s;
     s << "(";
-    s << Object::to_string(this->car);
-    std::shared_ptr<Object> listIt = this->cdr;
-    while (Object::is_true(listIt)) {
+    s << alma.to_string(this->car);
+    ObjectWeakRef<Object> it = this->cdr;
+    while (alma.truep(it)) {
         s << " ";
-        std::shared_ptr<Cons> maybeCons = std::dynamic_pointer_cast<Cons>(listIt);
-        if (maybeCons) {
-            s << Object::to_string(maybeCons->car);
-            listIt = maybeCons->cdr;
+        if (alma.consp(it)) {
+            s << alma.to_string(it.as<Cons>()->car);
         } else {
             s << ". ";
-            s << Object::to_string(listIt);
+            s << alma.to_string(it);
             break;
         }
+        it = it.as<Cons>()->cdr;
     }
     s << ")";
 
     return s.str();
 }
 
-bool Cons::typep_impl(const std::shared_ptr<Symbol>& sym) const
+bool Cons::typep(ObjectWeakRef<Object> self, ObjectWeakRef<Object> type, Alma& alma) const
 {
-    return sym->name == "cons" || sym->name == "list";
+    return type == alma.find_alma_symbol("cons") || this->Object::typep(self, type, alma);
+}
+
+Cons::iterator Cons::begin(Alma& alma)
+{
+    return iterator(this, alma);
+}
+
+Cons::iterator Cons::end(Alma& alma)
+{
+    return iterator(alma);
 }

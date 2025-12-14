@@ -48,3 +48,13 @@ bool Symbol::typep_impl(const std::shared_ptr<Symbol>& sym) const
 {
     return sym->name == "symbol";
 }
+
+std::string& Symbol::get_name()
+{
+    return this->name;
+}
+
+const std::string& Symbol::get_name() const
+{
+    return this->name;
+}

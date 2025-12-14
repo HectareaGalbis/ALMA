@@ -1,87 +1,84 @@
 
 #include "special_operator.hpp"
-#include "objects.hpp"
+#include "alma.hpp"
+#include "cons.hpp"
+#include "debug.hpp"
+#include "object.hpp"
 #include "package.hpp"
+#include "symbol.hpp"
 #include <memory>
 
-#define intern_special_operator(name_impl, name)                                         \
-    std::shared_ptr<Symbol>& name_impl##_so = Package::almaPackage->intern_symbol(name); \
-    name_impl##_so->function = std::make_shared<name_impl>();
-
-void intern_special_operators()
+template <typename T>
+void intern_special_operator(const std::string& name, Alma& alma)
 {
-    intern_special_operator(progn, "progn");
-    intern_special_operator(let, "let");
-    intern_special_operator(quote, "quote");
-    intern_special_operator(lambda, "lambda");
-    intern_special_operator(gamma, "gamma");
-    intern_special_operator(branch, "if");
-    intern_special_operator(quasiquote, "quasiquote");
+    ObjectWeakRef<Symbol> sym = alma.alma_package->intern_symbol(name, alma);
+    sym->set_function(alma.gc.make_object<T>());
+}
+
+void intern_special_operators(Alma& alma)
+{
+    intern_special_operator<progn>("progn", alma);
+    intern_special_operator<let>("let", alma);
+    intern_special_operator<quote>("quote", alma);
+    intern_special_operator<lambda>("lambda", alma);
+    intern_special_operator<gamma>("gamma", alma);
+    intern_special_operator<branch>("if", alma);
+    intern_special_operator<quasiquote>("quasiquote", alma);
 }
 
 // --------------------------------------------------------------------------------
 
-std::shared_ptr<Object> progn::apply(
-    Environment& lex_env [[maybe_unused]],
-    const std::vector<std::shared_ptr<Object>>& arguments)
+ObjectWeakRef<Object> progn::apply(const std::vector<ObjectWeakRef<Object>>& arguments, Alma& alma)
 {
     if (arguments.empty()) {
-        return std::make_shared<Nil>();
+        return alma.boolean(false);
     }
     for (size_t i = 0; i < arguments.size() - 1; i++) {
-        Object::eval(arguments[i], lex_env);
+        alma.eval(arguments[i]);
     }
-    return Object::eval(arguments.back(), lex_env);
+    return alma.eval(arguments.back());
 }
 
 // --------------------------------------------------------------------------------
 
-static std::vector<std::pair<std::shared_ptr<Symbol>, std::shared_ptr<Object>>> parseBindings(
-    const std::shared_ptr<Cons>& bindings)
+static std::vector<std::pair<ObjectWeakRef<Symbol>, ObjectWeakRef<Object>>> parseBindings(
+    ObjectWeakRef<Cons> bindings, Alma& alma)
 {
-    std::vector<std::pair<std::shared_ptr<Symbol>, std::shared_ptr<Object>>> parsedBindings;
+    std::vector<std::pair<ObjectWeakRef<Symbol>, ObjectWeakRef<Object>>> parsedBindings;
 
-    for (const std::shared_ptr<Object>& element : bindings->toList()) {
-        const std::shared_ptr<Cons> binding = std::dynamic_pointer_cast<Cons>(element);
-        if (!binding)
+    for (ObjectWeakRef<Object> element : bindings->toList()) {
+        if (!alma.consp(element))
             throw std::runtime_error("Expected a binding clause (a list).");
-        std::vector<std::shared_ptr<Object>> bindingList = binding->toList();
+        std::vector<ObjectWeakRef<Object>> bindingList = element.as<Cons>()->toList();
         if (bindingList.size() != 2)
             throw std::runtime_error("The binding clause must have 2 elements.");
-        const std::shared_ptr<Symbol> var = std::dynamic_pointer_cast<Symbol>(bindingList[0]);
-        if (!var)
+        if (!alma.symbolp(bindingList[0]))
             throw std::runtime_error("The first element of the binding clause must be a symbol");
-        const std::shared_ptr<Object>& value = bindingList[1];
-        parsedBindings.emplace_back(std::move(var), value);
+        parsedBindings.emplace_back(bindingList[0], bindingList[1]);
     }
 
     return parsedBindings;
 }
 
-static std::vector<std::pair<std::shared_ptr<Symbol>, std::shared_ptr<Object>>> evaluateBindings(
-    Environment& lex_env,
-    const std::vector<std::pair<std::shared_ptr<Symbol>, std::shared_ptr<Object>>>& bindings)
+static std::vector<std::pair<ObjectWeakRef<Symbol>, ObjectWeakRef<Object>>> evaluateBindings(
+    const std::vector<std::pair<ObjectWeakRef<Symbol>, ObjectWeakRef<Object>>>& bindings, Alma& alma)
 {
-    std::vector<std::pair<std::shared_ptr<Symbol>, std::shared_ptr<Object>>> evaluatedBindings;
+    std::vector<std::pair<ObjectWeakRef<Symbol>, ObjectWeakRef<Object>>> evaluatedBindings;
 
     for (const auto& [var, value] : bindings) {
-        evaluatedBindings.emplace_back(var, Object::eval(value, lex_env));
+        evaluatedBindings.emplace_back(var, alma.eval(value));
     }
 
     return evaluatedBindings;
 }
 
-std::shared_ptr<Object> let::apply(
-    Environment& lex_env, const std::vector<std::shared_ptr<Object>>& arguments)
+ObjectWeakRef<Object> let::apply(const std::vector<ObjectWeakRef<Object>>& arguments, Alma& alma)
 {
-    if (arguments.empty())
-        throw std::runtime_error("let needs at least a list");
+    massert(!arguments.empty(), "let needs at least a list");
 
-    const std::shared_ptr<Cons> bindings = std::dynamic_pointer_cast<Cons>(arguments.front());
-    if (!bindings)
-        throw std::runtime_error("Expected a list.");
+    massert(alma.consp(arguments.front()), "Expected a list");
 
-    auto parsedBindings = parseBindings(bindings);
+    auto parsedBindings = parseBindings(bindings, alma);
     auto evaluatedBindings = evaluateBindings(lex_env, parsedBindings);
 
     if (arguments.size() == 1)

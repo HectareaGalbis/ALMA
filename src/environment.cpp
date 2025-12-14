@@ -1,26 +1,58 @@
 
 #include "environment.hpp"
-#include "objects.hpp"
+#include <stdexcept>
 
-bool Environment::EnvironmentLayer::isSymbolBound(const std::shared_ptr<Symbol>& symbol) const
+Environment::EnvironmentLayer::EnvironmentLayer(const EnvironmentLayer& other)
 {
-    return this->values.contains(symbol) && values.at(symbol);
+    for (auto& [key, value] : other.values)
+        this->values.emplace(std::piecewise_construct,
+            std::forward_as_tuple(*this, key),
+            std::forward_as_tuple(*this, value));
 }
 
-void Environment::EnvironmentLayer::setValue(const std::shared_ptr<Symbol>& symbol,
-    const std::shared_ptr<Object>& value)
+bool Environment::EnvironmentLayer::isSymbolBound(ObjectWeakRef<Symbol> symbol) const
 {
-    this->values[symbol] = value;
+    return this->values.contains(symbol);
 }
 
-std::shared_ptr<Object> Environment::EnvironmentLayer::getValue(const std::shared_ptr<Symbol>& symbol) const
+void Environment::EnvironmentLayer::insert(ObjectWeakRef<Symbol> symbol, ObjectWeakRef<Symbol> value)
+{
+    if (this->isSymbolBound(symbol))
+        throw std::runtime_error("The symbol " + symbol->get_name() + " is already bound.");
+    this->values.try_emplace(ObjectRef<Symbol>(*this, symbol), *this, value);
+}
+
+void Environment::EnvironmentLayer::setValue(ObjectWeakRef<Symbol> symbol, ObjectWeakRef<Symbol> value)
 {
     if (!this->isSymbolBound(symbol))
-        throw std::runtime_error("The symbol " + symbol->name + " is not bound");
-    return this->values.at(symbol);
+        throw std::runtime_error("The symbol " + symbol->get_name() + " is not bound");
+    this->values.find(symbol)->second = value;
 }
 
-bool Environment::isSymbolBound(const std::shared_ptr<Symbol>& symbol) const
+void Environment::EnvironmentLayer::insert_or_set(ObjectWeakRef<Symbol> symbol, ObjectWeakRef<Symbol> value)
+{
+    if (!this->isSymbolBound(symbol))
+        this->values.try_emplace(ObjectRef<Symbol>(*this, symbol), *this, value);
+    else
+        this->values.find(symbol)->second = value;
+}
+
+ObjectWeakRef<Symbol> Environment::EnvironmentLayer::getValue(ObjectWeakRef<Symbol> symbol) const
+{
+    if (!this->isSymbolBound(symbol))
+        throw std::runtime_error("The symbol " + symbol->get_name() + " is not bound");
+    return this->values.find(symbol)->second;
+}
+
+// --------------------------------------------------------------------------------
+
+Environment::Environment(const Environment& other)
+{
+    for (auto& environmentLayer : other.values)
+        this->values.emplace_back(*this, environmentLayer);
+}
+
+bool Environment::isSymbolBound(ObjectWeakRef<Symbol> symbol) const
 {
     size_t len = this->values.size();
     for (size_t i = 0; i < len; i++) {
@@ -30,21 +62,6 @@ bool Environment::isSymbolBound(const std::shared_ptr<Symbol>& symbol) const
     return false;
 }
 
-void Environment::pushValues(
-    const std::vector<std::shared_ptr<Symbol>>& _symbols,
-    const std::vector<std::shared_ptr<Object>>& _values)
-{
-    if (_symbols.size() != _values.size())
-        throw std::runtime_error("Symbols and values must have the same size");
-
-    std::shared_ptr<EnvironmentLayer> layer = std::make_shared<EnvironmentLayer>();
-    for (size_t i = 0; i < _symbols.size(); i++) {
-        layer->setValue(_symbols[i], _values[i]);
-    }
-
-    this->values.push_back(layer);
-}
-
 void Environment::popValues()
 {
     if (values.empty())
@@ -52,7 +69,7 @@ void Environment::popValues()
     values.pop_back();
 }
 
-std::shared_ptr<Object> Environment::getValue(const std::shared_ptr<Symbol>& symbol) const
+ObjectWeakRef<Object> Environment::getValue(ObjectWeakRef<Symbol> symbol) const
 {
     size_t len = this->values.size();
     for (size_t i = 0; i < len; i++) {
@@ -60,10 +77,10 @@ std::shared_ptr<Object> Environment::getValue(const std::shared_ptr<Symbol>& sym
             return values[len - i - 1]->getValue(symbol);
     }
 
-    throw std::runtime_error("The symbol " + symbol->name + " is not bound");
+    throw std::runtime_error("The symbol " + symbol->get_name() + " is not bound");
 }
 
-void Environment::setValue(const std::shared_ptr<Symbol>& symbol, const std::shared_ptr<Object>& value)
+void Environment::setValue(ObjectWeakRef<Symbol> symbol, ObjectWeakRef<Object> value)
 {
     size_t len = this->values.size();
     for (size_t i = 0; i < len; i++) {
@@ -72,5 +89,5 @@ void Environment::setValue(const std::shared_ptr<Symbol>& symbol, const std::sha
             return;
         }
     }
-    throw std::runtime_error("The symbol " + symbol->name + " is not bound");
+    throw std::runtime_error("The symbol " + symbol->get_name() + " is not bound");
 }

@@ -17,23 +17,62 @@ Alma::Alma()
     gc.track_root_object(this->last_object.obj);
 }
 
-// GarbageCollector& Alma::getGc()
-// {
-//     return this->gc;
-// }
+ObjectWeakRef<Object> Alma::eval(ObjectWeakRef<Object> obj)
+{
+    return obj->eval(obj, *this);
+}
 
-// Environment& Alma::getEnvironment()
-// {
-//     return this->environment;
-// }
+std::string Alma::to_string(ObjectWeakRef<Object> obj)
+{
+    return obj->to_string(obj, *this);
+}
 
-// GCObjectRef Alma::eval(Alma& alma, GCObjectRef obj)
-// {
-//     return obj.as<Object>().eval(alma, obj);
-// }
+bool Alma::typep(ObjectWeakRef<Object> obj, ObjectWeakRef<Object> sym)
+{
+    return obj->typep(obj, sym, *this);
+}
 
-// ObjectRef Alma::eq(Alma& alma, const ObjectRef& obj1, const ObjectRef& obj2)
-// {
-//     ObjectRef(*this, alma.gc.make_object<>);
-//     return ObjectRef(*this, );
-// }
+bool Alma::symbolp(ObjectWeakRef<Object> obj)
+{
+    return this->typep(obj, this->find_alma_symbol("symbol"));
+}
+
+bool Alma::consp(ObjectWeakRef<Object> obj)
+{
+    return this->typep(obj, this->find_alma_symbol("cons"));
+}
+
+bool Alma::truep(ObjectWeakRef<Object> obj)
+{
+    return obj != this->find_alma_symbol("nil");
+}
+
+bool Alma::null(ObjectWeakRef<Object> obj)
+{
+    return obj == this->find_alma_symbol("nil");
+}
+
+ObjectWeakRef<Object> Alma::boolean(bool v)
+{
+    return this->alma_package->find_symbol(v ? "t" : "nil", *this);
+}
+
+bool Alma::eq(ObjectWeakRef<Object> obj1, ObjectWeakRef<Object> obj2)
+{
+    return obj1 == obj2;
+}
+
+ObjectWeakRef<Object> Alma::find_symbol(const std::string& name)
+{
+    return this->current_package->find_symbol(name, *this);
+}
+
+ObjectWeakRef<Object> Alma::find_symbol(const std::string& name, ObjectWeakRef<Package> package)
+{
+    return package->find_symbol(name, *this);
+}
+
+ObjectWeakRef<Object> Alma::find_alma_symbol(const std::string& name)
+{
+    return this->alma_package->find_symbol(name, *this);
+}

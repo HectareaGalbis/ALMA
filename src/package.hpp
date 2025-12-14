@@ -13,5 +13,5 @@ public:
     ObjectWeakRef<Object> intern_symbol(const std::string& name, Alma& alma);
 
 public:
-    virtual bool typep(ObjectWeakRef<Object> self, ObjectWeakRef<Object> type, Alma& alma) override;
+    virtual bool typep(ObjectWeakRef<Object> self, ObjectWeakRef<Object> type, Alma& alma) const override;
 };

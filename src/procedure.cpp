@@ -1,64 +1,52 @@
 
 #include "procedure.hpp"
+#include "alma.hpp"
+#include "cons.hpp"
+#include "environment.hpp"
+#include "package.hpp"
+#include <stdexcept>
 
-std::shared_ptr<Object> Procedure::eval_impl(
-    const std::shared_ptr<Object>& obj, Environment& lex_env [[maybe_unused]]) const
+bool Procedure::typep(ObjectWeakRef<Object> self, ObjectWeakRef<Object> type, Alma& alma) const
 {
-    return obj;
+    return type == alma.find_alma_symbol("procedure") || this->Object::typep(self, type, alma);
 }
 
-void Procedure::emit_impl() const
-{
-    throw std::runtime_error("A procedure cannot be emitted");
-}
+// --------------------------------------------------------------------------------
 
-std::string Procedure::to_string_impl() const
+ObjectWeakRef<Object> Function::apply(ObjectWeakRef<Cons> arguments, Alma& alma)
 {
-    std::stringstream s;
-    s << "<";
-    s << std::hex << this;
-    if (this->name)
-        s << " " << *this->name;
-    s << ">";
-    return s.str();
-}
-
-bool Procedure::typep_impl(const std::shared_ptr<Symbol>& sym) const
-{
-    return sym->name == "procedure";
-}
-
-std::vector<std::shared_ptr<Object>> Function::eval_args(
-    const std::vector<std::shared_ptr<Object>>& args, Environment& lex_env)
-{
-    std::vector<std::shared_ptr<Object>> evaluated_args;
-    evaluated_args.reserve(args.size());
-    for (const std::shared_ptr<Object>& arg : args) {
-        evaluated_args.push_back(Object::eval(arg, lex_env));
+    std::vector<ObjectWeakRef<Object>> evaluated_args;
+    alma_for_each(arg, arguments, alma)
+    {
+        evaluated_args.emplace_back(alma.eval(arg));
     }
-
-    return evaluated_args;
+    return this->eval_body(evaluated_args, alma);
 }
 
-std::shared_ptr<Object> Function::apply(
-    Environment& lex_env, const std::vector<std::shared_ptr<Object>>& arguments)
+bool Function::typep(ObjectWeakRef<Object> self, ObjectWeakRef<Object> type, Alma& alma) const
 {
-    std::vector<std::shared_ptr<Object>> evaluated_args = eval_args(arguments, lex_env);
-    return this->eval_body(evaluated_args, lex_env);
+    return type == alma.alma_package->find_symbol("function", alma) || this->Procedure::typep(self, type, alma);
 }
 
-bool Function::typep_impl(const std::shared_ptr<Symbol>& sym) const
+// --------------------------------------------------------------------------------
+
+FunctionUser::FunctionUser(ObjectWeakRef<Environment> _closure,
+    const std::vector<ObjectWeakRef<Symbol>>& _params,
+    const std::vector<ObjectWeakRef<Object>>& _body)
+    : closure(*this, _closure)
 {
-    return sym->name == "function" || this->Procedure::typep_impl(sym);
+    for (ObjectWeakRef<Symbol> param : _params)
+        this->params.emplace_back(*this, param);
+    for (ObjectWeakRef<Object> expr : _body)
+        this->body.emplace_back(*this, expr);
 }
 
-std::shared_ptr<Object> FunctionUser::eval_body(
-    const std::vector<std::shared_ptr<Object>>& args, Environment& lex_env [[maybe_unused]])
+ObjectWeakRef<Object> FunctionUser::eval_body(const std::vector<ObjectWeakRef<Object>>& args, Alma& alma)
 {
     if (this->params.size() != args.size())
         throw std::runtime_error("Needed " + std::to_string(this->params.size()) + " but received " + std::to_string(args.size()) + " params");
 
-    this->closure.pushValues(this->params, args);
+    this->closure->pushValues(this->params, args, alma);
 
     for (size_t i = 0; i < this->body.size() - 1; i++) {
         Object::eval(this->body[i], this->closure);
@@ -70,10 +58,13 @@ std::shared_ptr<Object> FunctionUser::eval_body(
     return result;
 }
 
-bool FunctionUser::typep_impl(const std::shared_ptr<Symbol>& sym) const
+bool FunctionUser::typep(ObjectWeakRef<Object> self, ObjectWeakRef<Object> type, Alma& alma) const
 {
-    return sym->name == "function-user" || this->Function::typep_impl(sym);
+    return type == alma.alma_package->find_symbol("function-user", alma)
+        || this->Function::typep(self, type, alma);
 }
+
+// --------------------------------------------------------------------------------
 
 std::shared_ptr<Object> Macro::apply(
     Environment& lex_env, const std::vector<std::shared_ptr<Object>>& arguments)

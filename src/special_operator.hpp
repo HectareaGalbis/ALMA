@@ -1,16 +1,15 @@
 
 #pragma once
 
-#include "objects.hpp"
+#include "procedure.hpp"
 
 void intern_special_operators();
 
-#define declare_special_operator(name)                                       \
-    class name : public Procedure {                                          \
-    public:                                                                  \
-        virtual std::shared_ptr<Object> apply(                               \
-            Environment& lex_env,                                            \
-            const std::vector<std::shared_ptr<Object>>& arguments) override; \
+#define declare_special_operator(name)                                                 \
+    class name : public Procedure {                                                    \
+    public:                                                                            \
+        virtual ObjectWeakRef<Object> apply(                                           \
+            const std::vector<ObjectWeakRef<Object>>& arguments, Alma& alma) override; \
     }
 
 declare_special_operator(progn);

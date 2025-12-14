@@ -11,14 +11,19 @@ ObjectWeakRef<> Object::eval(ObjectWeakRef<> self, Alma& alma [[maybe_unused]])
     return self;
 }
 
-std::string Object::to_string(ObjectWeakRef<> self [[maybe_unused]], Alma& alma [[maybe_unused]])
+std::string Object::to_string(ObjectWeakRef<> self [[maybe_unused]], Alma& alma [[maybe_unused]]) const
 {
     std::stringstream ss;
     ss << "<" << this << ">";
     return ss.str();
 }
 
-bool Object::typep(ObjectWeakRef<> self [[maybe_unused]], ObjectWeakRef<> type, Alma& alma)
+bool Object::typep(ObjectWeakRef<> self [[maybe_unused]], ObjectWeakRef<> type, Alma& alma) const
 {
     return type == alma.alma_package->find_symbol("t", alma);
+}
+
+bool Object::truep(ObjectWeakRef<Object> self, Alma& alma) const
+{
+    return self != alma.alma_package->find_symbol("nil", alma);
 }

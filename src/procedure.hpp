@@ -4,73 +4,44 @@
 #include "object.hpp"
 #include <string>
 
+class Environment;
+class Symbol;
+class Cons;
+
 class Procedure : public Object {
-private:
-    std::optional<std::string> name;
-
 public:
-    Procedure() = default;
-    Procedure(const Procedure& other) = default;
-    template <typename Name>
-    Procedure(Name&& _name)
-        : name(_name)
-    {
-    }
+    virtual bool typep(ObjectWeakRef<Object> self, ObjectWeakRef<Object> type, Alma& alma) const override;
 
-    virtual ObjectRef eval(
-        const std::shared_ptr<Object>& obj, Environment& lex_env) const override;
-    virtual void emit_impl() const override;
-    virtual std::string to_string() const override;
-    virtual bool typep(const std::shared_ptr<Symbol>& sym) const override;
-
-    virtual std::shared_ptr<Object> apply(Environment& lex_env,
-        const std::vector<std::shared_ptr<Object>>& arguments)
-        = 0;
+    virtual ObjectWeakRef<Object> apply(ObjectWeakRef<Cons> arguments, Alma& alma) = 0;
 };
 
 struct Function : Procedure {
-    template <typename Name>
-    Function(Name&& _name)
-        : Procedure(std::forward<Name>(_name))
-    {
-    }
-
 private:
-    static std::vector<std::shared_ptr<Object>> eval_args(
-        const std::vector<std::shared_ptr<Object>>& args,
-        Environment& lex_env);
+    static std::vector<ObjectWeakRef<Object>> eval_args(
+        const std::vector<ObjectWeakRef<Object>>& args,
+        Alma& alma);
 
 protected:
-    virtual std::shared_ptr<Object> eval_body(
-        const std::vector<std::shared_ptr<Object>>& args, Environment& lex_env)
-        = 0;
+    virtual ObjectWeakRef<Object> eval_body(const std::vector<ObjectWeakRef<Object>>& args, Alma& alma) = 0;
 
 public:
-    virtual std::shared_ptr<Object> apply(
-        Environment& lex_env, const std::vector<std::shared_ptr<Object>>& arguments) override;
+    virtual ObjectWeakRef<Object> apply(ObjectWeakRef<Cons> arguments, Alma& alma) override;
 
-    virtual bool typep(const std::shared_ptr<Symbol>& sym) const override;
+    virtual bool typep(ObjectWeakRef<Object> self, ObjectWeakRef<Object> type, Alma& alma) const override;
 };
 
 struct FunctionUser : Function {
-    Environment closure;
-    std::vector<std::shared_ptr<Symbol>> params;
-    std::vector<std::shared_ptr<Object>> body;
+    ObjectRef<Environment> closure;
+    std::vector<ObjectRef<Symbol>> params;
+    std::vector<ObjectRef<Object>> body;
 
-    FunctionUser(const FunctionUser& other) = default;
-    template <typename Name, typename Closure, typename Params, typename Body>
-    FunctionUser(Name&& _name, Closure&& _closure, Params&& _params, Body&& _body)
-        : Function(std::forward<Name>(_name))
-        , closure(_closure)
-        , params(std::forward<Params>(_params))
-        , body(std::forward<Body>(_body))
-    {
-    }
+    FunctionUser(ObjectWeakRef<Environment> closure,
+        const std::vector<ObjectWeakRef<Symbol>>& params,
+        const std::vector<ObjectWeakRef<Object>>& body);
 
 protected:
-    virtual std::shared_ptr<Object> eval_body(
-        const std::vector<std::shared_ptr<Object>>& args, Environment& lex_env) override;
-    virtual bool typep(const std::shared_ptr<Symbol>& sym) const override;
+    virtual ObjectWeakRef<Object> eval_body(const std::vector<ObjectWeakRef<Object>>& args, Alma& alma) override;
+    virtual bool typep(ObjectWeakRef<Object> self, ObjectWeakRef<Object> type, Alma& alma) const override;
 };
 
 struct Macro : Procedure {
@@ -81,35 +52,26 @@ struct Macro : Procedure {
     }
 
 protected:
-    virtual std::shared_ptr<Object> eval_body(
-        const std::vector<std::shared_ptr<Object>>& args, Environment& lex_env)
-        = 0;
+    virtual ObjectWeakRef<Object> eval_body(const std::vector<ObjectWeakRef<Object>>& args, Alma& alma) = 0;
 
 public:
-    virtual std::shared_ptr<Object> apply(
-        Environment& lex_env, const std::vector<std::shared_ptr<Object>>& arguments) override;
-    std::shared_ptr<Object> expand(Environment& lex_env, const std::vector<std::shared_ptr<Object>>& arguments);
+    virtual ObjectWeakRef<Object> apply(
+        const std::vector<ObjectWeakRef<Object>>& arguments, Alma& alma) override;
+    ObjectWeakRef<Object> expand(const std::vector<ObjectWeakRef<Object>>& arguments, Alma& alma);
 
-    virtual bool typep(const std::shared_ptr<Symbol>& sym) const override;
+    virtual bool typep(ObjectWeakRef<Object> self, ObjectWeakRef<Object> type, Alma& alma) const override;
 };
 
 struct MacroUser : Macro {
-    Environment closure;
-    std::vector<std::shared_ptr<Symbol>> params;
-    std::vector<std::shared_ptr<Object>> body;
+    ObjectRef<Environment> closure;
+    std::vector<ObjectRef<Symbol>> params;
+    std::vector<ObjectRef<Object>> body;
 
-    MacroUser(const MacroUser& other) = default;
-    template <typename Name, typename Closure, typename Params, typename Body>
-    MacroUser(Name&& _name, Closure&& _closure, Params&& _params, Body&& _body)
-        : Macro(std::forward<Name>(_name))
-        , closure(_closure)
-        , params(std::forward<Params>(_params))
-        , body(std::forward<Body>(_body))
-    {
-    }
+    MacroUser(ObjectWeakRef<Environment> closure,
+        const std::vector<ObjectWeakRef<Symbol>>& params,
+        const std::vector<ObjectWeakRef<Object>>& body);
 
 protected:
-    virtual std::shared_ptr<Object> eval_body(
-        const std::vector<std::shared_ptr<Object>>& args, Environment& lex_env) override;
-    virtual bool typep(const std::shared_ptr<Symbol>& sym) const override;
+    virtual ObjectWeakRef<Object> eval_body(const std::vector<ObjectWeakRef<Object>>& args, Alma& alma) override;
+    virtual bool typep(ObjectWeakRef<Object> self, ObjectWeakRef<Object> type, Alma& alma) const override;
 };

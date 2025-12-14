@@ -1,7 +1,7 @@
 
 #pragma once
 
-#include "objects.hpp"
+#include "object.hpp"
 
 namespace reader {
 std::shared_ptr<Object> read(std::istream& input);
