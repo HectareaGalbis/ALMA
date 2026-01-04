@@ -9,60 +9,70 @@
 #include <vector>
 
 class Environment : public Object {
+    friend class EnvironmentLayer;
+
 private:
-    class EnvironmentLayer : public Object {
+    class EnvironmentLayer {
     private:
-        std::unordered_map<ObjectRef<Symbol>, ObjectRef<Object>, ObjectRefHash, ObjectRefEqual> values;
+        class EnvironmentProperty {
+        private:
+            Environment& owner;
+            std::unordered_map<ObjectRef<Symbol>, ObjectRef<Object>, ObjectRefHash, ObjectRefEqual> values;
+
+        public:
+            EnvironmentProperty(Environment& owner);
+            EnvironmentProperty(Environment& owner, const EnvironmentProperty& other);
+            bool has_symbol(ObjectWeakRef<Symbol> symbol) const;
+            void insert(ObjectWeakRef<Symbol> symbol, ObjectWeakRef<Object> value);
+            void set_value(ObjectWeakRef<Symbol> symbol, ObjectWeakRef<Object> value);
+            void insert_or_set_value(ObjectWeakRef<Symbol> symbol, ObjectWeakRef<Object> value);
+            ObjectWeakRef<Object> get_value(ObjectWeakRef<Symbol> symbol) const;
+        };
+
+    private:
+        Environment& owner;
+        std::unordered_map<ObjectRef<Symbol>, EnvironmentProperty, ObjectRefHash, ObjectRefEqual> properties;
 
     public:
-        EnvironmentLayer(const EnvironmentLayer& other);
-        bool isSymbolBound(ObjectWeakRef<Symbol> symbol) const;
-        template <typename InputIt>
-        void insert(InputIt start, InputIt end);
-        void insert(ObjectWeakRef<Symbol> symbol, ObjectWeakRef<Symbol> value);
-        void setValue(ObjectWeakRef<Symbol> symbol, ObjectWeakRef<Symbol> value);
-        void insert_or_set(ObjectWeakRef<Symbol> symbol, ObjectWeakRef<Symbol> value);
-        ObjectWeakRef<Symbol> getValue(ObjectWeakRef<Symbol> symbol) const;
+        EnvironmentLayer(Environment& owner);
+        EnvironmentLayer(Environment& owner, const EnvironmentLayer& other);
+        bool has_property(ObjectWeakRef<Symbol> property) const;
+        bool has_symbol_property(ObjectWeakRef<Symbol> symbol, ObjectWeakRef<Symbol> property) const;
+        void insert(ObjectWeakRef<Symbol> symbol, ObjectWeakRef<Symbol> property, ObjectWeakRef<Object> value);
+        void set_value(ObjectWeakRef<Symbol> symbol, ObjectWeakRef<Symbol> property, ObjectWeakRef<Object> value);
+        void insert_or_set_value(
+            ObjectWeakRef<Symbol> symbol, ObjectWeakRef<Symbol> property, ObjectWeakRef<Object> value);
+        ObjectWeakRef<Object> get_value(ObjectWeakRef<Symbol> symbol, ObjectWeakRef<Symbol> property) const;
     };
 
 private:
-    std::vector<ObjectRef<EnvironmentLayer>> values;
+    std::vector<EnvironmentLayer> layers;
+
+private:
+    void push_layer();
+    void pop_layer();
+    bool has_symbol_property(ObjectWeakRef<Symbol> symbol, ObjectWeakRef<Symbol> property) const;
+    void insert_or_set_value(
+        ObjectWeakRef<Symbol> symbol, ObjectWeakRef<Symbol> property, ObjectWeakRef<Object> value);
+    void set_value(
+        ObjectWeakRef<Symbol> symbol, ObjectWeakRef<Symbol> property, ObjectWeakRef<Object> value);
+    ObjectWeakRef<Object> get_value(ObjectWeakRef<Symbol> symbol, ObjectWeakRef<Symbol> property) const;
 
 public:
     Environment(const Environment& other);
-    bool isSymbolBound(ObjectWeakRef<Symbol> symbol) const;
-    template <typename InputIt>
-    void pushValues(InputIt first, InputIt second, Alma& alma);
-    template <ObjectRefType<Symbol> S, ObjectRefType<Object> O>
-    void pushValues(const std::vector<S>& symbols, const std::vector<O>& values, Alma& alma);
-    void popValues();
-    ObjectWeakRef<Object> getValue(ObjectWeakRef<Symbol> symbol) const;
-    void setValue(ObjectWeakRef<Symbol> symbol, ObjectWeakRef<Object> value);
 };
 
-template <typename InputIt>
-void Environment::EnvironmentLayer::insert(InputIt start, InputIt end)
-{
-    this->values.insert(start, end);
-}
+class EnvironmentLayer {
+private:
+    Environment& environment;
 
-template <typename InputIt>
-void Environment::pushValues(InputIt first, InputIt second, Alma& alma)
-{
-    ObjectWeakRef<EnvironmentLayer> layer = alma.gc.make_object<EnvironmentLayer>();
-    layer->insert(first, second);
-    this->values.emplace_back(*this, layer);
-}
-
-template <ObjectRefType<Symbol> S, ObjectRefType<Object> O>
-void Environment::pushValuess(const std::vector<S>& _symbols, const std::vector<O>& _values, Alma& alma)
-{
-    if (_symbols.size() != _values.size())
-        throw std::runtime_error("Symbols and values must have the same size");
-
-    ObjectWeakRef<EnvironmentLayer> layer = alma.gc.make_object<EnvironmentLayer>();
-    for (size_t i = 0; i < _symbols.size(); i++) {
-        layer->insert_or_set(_symbols[i], _values[i]);
-    }
-    this->values.emplace_back(*this, layer);
-}
+public:
+    EnvironmentLayer(Environment& environment);
+    ~EnvironmentLayer();
+    bool has_symbol_property(ObjectWeakRef<Symbol> symbol, ObjectWeakRef<Symbol> property) const;
+    void insert_or_set_value(
+        ObjectWeakRef<Symbol> symbol, ObjectWeakRef<Symbol> property, ObjectWeakRef<Object> value);
+    void set_value(
+        ObjectWeakRef<Symbol> symbol, ObjectWeakRef<Symbol> property, ObjectWeakRef<Object> value);
+    ObjectWeakRef<Object> get_value(ObjectWeakRef<Symbol> symbol, ObjectWeakRef<Symbol> property) const;
+};

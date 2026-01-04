@@ -55,8 +55,7 @@ protected:
     virtual ObjectWeakRef<Object> eval_body(const std::vector<ObjectWeakRef<Object>>& args, Alma& alma) = 0;
 
 public:
-    virtual ObjectWeakRef<Object> apply(
-        const std::vector<ObjectWeakRef<Object>>& arguments, Alma& alma) override;
+    virtual ObjectWeakRef<Object> apply(ObjectWeakRef<Cons> arguments, Alma& alma) override;
     ObjectWeakRef<Object> expand(const std::vector<ObjectWeakRef<Object>>& arguments, Alma& alma);
 
     virtual bool typep(ObjectWeakRef<Object> self, ObjectWeakRef<Object> type, Alma& alma) const override;

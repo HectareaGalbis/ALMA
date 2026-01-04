@@ -9,6 +9,10 @@
 class Procedure;
 class Package;
 
+class SymbolContent {
+    std::unordered_map<ObjectRef<Symbol>, std::vector<ObjectRef<Object>>, ObjectRefHash, ObjectRefEqual> properties;
+};
+
 class Symbol : public Object {
 private:
     std::string name;
