@@ -6,132 +6,73 @@
 #include "procedure.hpp"
 #include "symbol.hpp"
 
-void Cons::iterator::increment()
-{
-    massert(this->ref, "The iterator has ended");
+// -----------------------------------------------------------------------------
 
-    ObjectWeakRef<Cons> cons_ref = *this->ref;
-
-    if (alma.consp(cons_ref->cdr)) {
-        this->ref = cons_ref->cdr.as<Cons>();
-    } else if (alma.null(cons_ref->cdr)) {
-        this->ref = std::nullopt;
-    } else {
-        mthrow("The cons is not a proper list");
-    }
-}
-
-Cons::iterator::iterator(Alma& _alma)
-    : alma(_alma)
-{
-}
-
-Cons::iterator::iterator(ObjectWeakRef<Cons> _ref, Alma& _alma)
-    : alma(_alma)
-    , ref(_ref)
-{
-}
-
-Cons::iterator::iterator(const iterator& other)
-    : alma(other.alma)
-    , ref(other.ref)
-{
-}
-
-Cons::iterator& Cons::iterator::operator=(const iterator& other)
-{
-    this->ref = other.ref;
-}
-
-Cons::iterator& Cons::iterator::operator++()
-{
-    this->increment();
-    return *this;
-}
-
-Cons::iterator Cons::iterator::operator++(int)
-{
-    iterator old(*this);
-    this->increment();
-    return old;
-}
-
-bool Cons::iterator::operator==(const iterator& other) const
-{
-    return this->ref == other.ref;
-}
-
-bool Cons::iterator::operator!=(const iterator& other) const
-{
-    return this->ref != other.ref;
-}
-
-Object& Cons::iterator::operator*()
-{
-    massert(this->ref, "Cannot dereference. The iterator has ended");
-    return *(*this->ref)->car;
-}
-
-Object* Cons::iterator::operator->()
-{
-    massert(this->ref, "Cannot dereference. The iterator has ended");
-    return (*this->ref)->car.get();
-}
-
-// --------------------------------------------------------------------------------
-
-Cons::Cons(ObjectWeakRef<Object> _car, ObjectWeakRef<Object> _cdr)
-    : car(*this, _car)
+Cons::Cons(Alma& _alma, ObjectWeakRef<Object> _car, ObjectWeakRef<Object> _cdr)
+    : Object(_alma)
+    , car(*this, _car)
     , cdr(*this, _cdr)
 {
 }
 
-// static std::shared_ptr<Cons> makeConsFromList(const std::vector<std::shared_ptr<Object>>& list,
-//     size_t currentIndex)
-// {
-//     if (currentIndex == list.size() - 1) {
-//         return std::make_shared<Cons>(list[currentIndex], std::make_shared<Nil>());
-//     } else {
-//         return std::make_shared<Cons>(list[currentIndex], makeConsFromList(list, currentIndex + 1));
-//     }
-// }
-
-// Cons::Cons(const std::vector<std::shared_ptr<Object>>& list)
-// {
-//     if (list.empty())
-//         throw std::runtime_error("The list is empty");
-
-//     std::shared_ptr<Cons> newCons = makeConsFromList(list, 0);
-//     this->car = newCons->car;
-//     this->cdr = newCons->cdr;
-// }
-
-// std::vector<std::shared_ptr<Object>> Cons::toList() const
-// {
-//     std::vector<std::shared_ptr<Object>> list;
-//     list.push_back(this->car);
-//     std::shared_ptr<Object> argIt = this->cdr;
-//     while (Object::is_true(argIt)) {
-//         std::shared_ptr<Cons> consIt = std::dynamic_pointer_cast<Cons>(argIt);
-//         if (!consIt)
-//             throw std::runtime_error("Error: Not a proper list.");
-//         list.push_back(consIt->car);
-//         argIt = consIt->cdr;
-//     }
-//     return list;
-// }
-
-ObjectWeakRef<Object> Cons::eval(ObjectWeakRef<Object> self, Alma& alma) const
+static ObjectWeakRef<Object> get_list_car(const std::vector<ObjectWeakRef<Object>>& list)
 {
-    massert(alma.symbolp(this->car), "Expected a symbol denoting a procedure. Found a " << alma.to_string(this->car));
+    if (list.empty())
+        mthrow("The list must not be empty");
 
-    ObjectWeakRef<Symbol> sym = this->car.as<Symbol>();
-    massert(sym->get_function(), "The symbol " << sym->get_name() << " does not denote a procedure.");
-
-    sym->get_function()->apply(this->cdr, alma);
+    return list.front();
 }
 
-std::string Cons::to_string(ObjectWeakRef<Object> self, Alma& alma) const
+static ObjectWeakRef<Object> get_list_cdr(const std::vector<ObjectWeakRef<Object>>& list,
+    size_t currentIndex, ObjectWeakRef<Object> non_proper_element, Alma& alma)
+{
+    if (list.empty())
+        mthrow("The list must not be empty");
+
+    if (currentIndex >= list.size())
+        return non_proper_element;
+    else
+        return alma.make<Cons>(
+            list[currentIndex], get_list_cdr(list, currentIndex + 1, non_proper_element, alma));
+}
+
+Cons::Cons(Alma& _alma, const std::vector<ObjectWeakRef<Object>>& list)
+    : Object(_alma)
+    , car(*this, get_list_car(list))
+    , cdr(*this, get_list_cdr(list, 1, alma.find_alma_symbol("nil"), alma))
+{
+}
+
+Cons::Cons(Alma& _alma, const std::vector<ObjectWeakRef<Object>>& list, ObjectWeakRef<Object> non_proper_element)
+    : Object(_alma)
+    , car(*this, get_list_car(list))
+    , cdr(*this, get_list_cdr(list, 1, non_proper_element, alma))
+{
+}
+
+std::pair<std::vector<ObjectWeakRef<Object>>, ObjectWeakRef<Object>> Cons::to_list() const
+{
+    std::vector<ObjectWeakRef<Object>> list;
+    list.push_back(this->car);
+    ObjectWeakRef<Object> argIt = this->cdr;
+    while (argIt) {
+        if (!this->alma.consp(argIt)) {
+            return { list, argIt };
+        }
+        list.push_back(argIt.as<Cons>()->car);
+        argIt = argIt.as<Cons>()->cdr;
+    }
+    return { list, this->alma.find_alma_symbol("nil") };
+}
+
+ObjectWeakRef<Object> Cons::eval(
+    ObjectWeakRef<Object> self [[maybe_unused]],
+    ObjectWeakRef<Environment> environment)
+{
+    return this->alma.apply(this->alma.eval(this->car, environment), this->cdr, environment);
+}
+
+std::string Cons::to_string(ObjectWeakRef<Object> self [[maybe_unused]])
 {
     std::stringstream s;
     s << "(";
@@ -153,17 +94,17 @@ std::string Cons::to_string(ObjectWeakRef<Object> self, Alma& alma) const
     return s.str();
 }
 
-bool Cons::typep(ObjectWeakRef<Object> self, ObjectWeakRef<Object> type, Alma& alma) const
+bool Cons::typep(ObjectWeakRef<Object> self, ObjectWeakRef<Object> type)
 {
-    return type == alma.find_alma_symbol("cons") || this->Object::typep(self, type, alma);
+    return type == this->alma.find_alma_symbol("cons") || this->Object::typep(self, type);
 }
 
-Cons::iterator Cons::begin(Alma& alma)
+ObjectWeakRef<Object> Cons::get_car()
 {
-    return iterator(this, alma);
+    return this->car;
 }
 
-Cons::iterator Cons::end(Alma& alma)
+ObjectWeakRef<Object> Cons::get_cdr()
 {
-    return iterator(alma);
+    return this->cdr;
 }

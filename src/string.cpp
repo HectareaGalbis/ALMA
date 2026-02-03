@@ -1,28 +1,19 @@
 
 #include "string.hpp"
+#include "alma.hpp"
 
-String::String(const std::string& _content)
-    : content(_content)
+String::String(Alma& _alma, const std::string& _content)
+    : Object(_alma)
+    , content(_content)
 {
 }
 
-std::shared_ptr<Object> String::eval_impl(
-    const std::shared_ptr<Object>& obj, Environment& lex_env [[maybe_unused]]) const
-{
-    return obj;
-}
-
-void String::emit_impl() const
-{
-    Emitter::emit(this->content);
-}
-
-std::string String::to_string_impl() const
+std::string String::to_string(ObjectWeakRef<Object> self [[maybe_unused]])
 {
     return this->content;
 }
 
-bool String::typep_impl(const std::shared_ptr<Symbol>& sym) const
+bool String::typep(ObjectWeakRef<Object> self, ObjectWeakRef<Object> type)
 {
-    return sym->name == "string";
+    return type == this->alma.find_alma_symbol("string") || this->Object::typep(self, type);
 }

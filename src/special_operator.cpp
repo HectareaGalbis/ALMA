@@ -28,7 +28,7 @@ void intern_special_operators(Alma& alma)
 
 // --------------------------------------------------------------------------------
 
-ObjectWeakRef<Object> progn::apply(const std::vector<ObjectWeakRef<Object>>& arguments, Alma& alma)
+ObjectWeakRef<Object> progn::apply(ObjectWeakRef<Cons> arguments, Alma& alma)
 {
     if (arguments.empty()) {
         return alma.boolean(false);

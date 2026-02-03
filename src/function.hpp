@@ -3,32 +3,28 @@
 
 #include "procedure.hpp"
 
-void intern_functions();
+// void intern_functions();
 
-#define declare_function(name)                                                    \
-    class name : public Function {                                                \
-    public:                                                                       \
-        template <typename Name>                                                  \
-        name(Name&& _n)                                                           \
-            : Function(std::forward<Name>(_n))                                    \
-        {                                                                         \
-        }                                                                         \
-                                                                                  \
-    protected:                                                                    \
-        virtual ObjectWeakRef<Object> eval_body(                                  \
-            const std::vector<ObjectWeakRef<Object>>& args, Alma& alma) override; \
-    }
+#define declare_function(name)                                  \
+    class name : public Function {                              \
+    public:                                                     \
+        name(Alma& _alma)                                       \
+            : Function(_alma)                                   \
+        {                                                       \
+        }                                                       \
+                                                                \
+    protected:                                                  \
+        virtual ObjectWeakRef<Object> eval_body(                \
+            const std::vector<ObjectWeakRef<Object>>& arg_list, \
+            ObjectWeakRef<Environment> enviroment) override;    \
+    };
 
-declare_function(sum);
-declare_function(print);
-declare_function(typep);
-declare_function(set_symbol_function);
-declare_function(set_symbol_package);
-declare_function(setq);
-declare_function(emit);
-declare_function(car);
-declare_function(cdr);
-declare_function(eq);
-declare_function(eql);
-declare_function(macroexpand_1);
-declare_function(eval);
+declare_function(Sum);
+declare_function(Print);
+declare_function(Typep);
+declare_function(Set_symbol_value);
+declare_function(Setq);
+declare_function(Car);
+declare_function(Cdr);
+declare_function(Eq);
+declare_function(Eval);

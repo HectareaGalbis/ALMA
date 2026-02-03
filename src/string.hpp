@@ -8,8 +8,9 @@ class String : public Object {
 private:
     std::string content;
 
-    String(const std::string& content);
+public:
+    String(Alma& alma, const std::string& content);
 
-    virtual std::string to_string() const override;
-    virtual bool typep(const Symbol& sym) const override;
+    virtual std::string to_string(ObjectWeakRef<Object> self) override;
+    virtual bool typep(ObjectWeakRef<Object> self, ObjectWeakRef<Object> type) override;
 };

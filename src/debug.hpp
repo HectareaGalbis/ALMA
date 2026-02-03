@@ -1,13 +1,9 @@
 
 #pragma once
 
+#include "util.hpp"
 #include <filesystem>
 #include <sstream>
-
-#define tokenpaste_aux(X, Y) X##Y
-#define tokenpaste(X, Y) tokenpaste_aux(X, Y)
-
-#define gensym(SYMBOL) tokenpaste(SYMBOL, __LINE__)
 
 #define mthrow(MSG)                                                                                          \
     {                                                                                                        \

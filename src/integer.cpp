@@ -1,35 +1,21 @@
 
 #include "integer.hpp"
+#include "alma.hpp"
 
-Integer::Integer(int64_t _value)
-    : value(_value)
+Integer::Integer(Alma& _alma, int64_t _value)
+    : Object(_alma)
+    , value(_value)
 {
 }
 
-std::shared_ptr<Object> Integer::eval_impl(
-    const std::shared_ptr<Object>& obj, Environment& lex_env [[maybe_unused]]) const
-{
-    return obj;
-}
-
-void Integer::emit_impl() const
-{
-    Emitter::emit(this->value);
-}
-
-std::string Integer::to_string_impl() const
+std::string Integer::to_string(ObjectWeakRef<Object> self [[maybe_unused]])
 {
     return std::to_string(this->value);
 }
 
-bool Integer::typep_impl(const std::shared_ptr<Symbol>& sym) const
+bool Integer::typep(ObjectWeakRef<Object> self, ObjectWeakRef<Object> type)
 {
-    return sym->name == "integer";
-}
-
-GCObjectRef Integer::eval(GCObjectRef obj, Environment& lex_env) const
-{
-    return obj;
+    return type == this->alma.find_alma_symbol("integer") || this->Object::typep(self, type);
 }
 
 int64_t Integer::operator*() const

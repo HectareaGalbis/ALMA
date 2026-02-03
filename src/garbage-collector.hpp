@@ -38,7 +38,7 @@ T* GarbageCollector::make_object(AS&&... as)
 {
     GCObject* newObject = new T(std::forward<AS>(as)...);
     this->object_pool.insert(newObject);
-    return newObject;
+    return reinterpret_cast<T*>(newObject);
 }
 
 class GCObject {
@@ -47,7 +47,7 @@ class GCObject {
 private:
     std::unordered_set<GCObject**> references;
 
-protected:
+public:
     std::unordered_set<GCObject**>& get_references();
     bool is_reference_tracked(GCObject** ref) const;
     void track_reference(GCObject** ref);

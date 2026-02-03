@@ -3,35 +3,34 @@
 #include "debug.hpp"
 #include <stdexcept>
 
-Environment::EnvironmentLayer::EnvironmentProperty::EnvironmentProperty(Environment& _owner)
+Environment::Layer::Property::Property(Environment& _owner)
     : owner(_owner)
 {
 }
 
-Environment::EnvironmentLayer::EnvironmentProperty::EnvironmentProperty(
-    Environment& _owner, const EnvironmentProperty& other)
-    : EnvironmentProperty(_owner)
+Environment::Layer::Property::Property(
+    Environment& _owner, const Property& other)
+    : Property(_owner)
 {
     for (auto& [key, value] : other.values)
-        this->values.emplace(std::piecewise_construct,
-            std::forward_as_tuple(this->owner, key),
-            std::forward_as_tuple(this->owner, value));
+        this->values.try_emplace(ObjectTrackedRef<Symbol>(this->owner, key),
+            this->owner, value);
 }
 
-bool Environment::EnvironmentLayer::EnvironmentProperty::has_symbol(ObjectWeakRef<Symbol> symbol) const
+bool Environment::Layer::Property::has_symbol(ObjectWeakRef<Symbol> symbol) const
 {
     return this->values.contains(symbol);
 }
 
-void Environment::EnvironmentLayer::EnvironmentProperty::insert(
+void Environment::Layer::Property::insert(
     ObjectWeakRef<Symbol> symbol, ObjectWeakRef<Object> value)
 {
     if (this->has_symbol(symbol))
         mthrow("The symbol " << symbol->get_name() << " is already in the environment property");
-    this->values.try_emplace(ObjectRef<Symbol>(this->owner, symbol), this->owner, value);
+    this->values.try_emplace(ObjectTrackedRef<Symbol>(this->owner, symbol), this->owner, value);
 }
 
-void Environment::EnvironmentLayer::EnvironmentProperty::set_value(
+void Environment::Layer::Property::set_value(
     ObjectWeakRef<Symbol> symbol, ObjectWeakRef<Object> value)
 {
     if (!this->has_symbol(symbol))
@@ -39,32 +38,32 @@ void Environment::EnvironmentLayer::EnvironmentProperty::set_value(
     this->values.find(symbol)->second = value;
 }
 
-void Environment::EnvironmentLayer::EnvironmentProperty::insert_or_set_value(
+void Environment::Layer::Property::insert_or_set_value(
     ObjectWeakRef<Symbol> symbol, ObjectWeakRef<Object> value)
 {
     if (!this->has_symbol(symbol))
-        this->values.try_emplace(ObjectRef<Symbol>(this->owner, symbol), this->owner, value);
+        this->values.try_emplace(ObjectTrackedRef<Symbol>(this->owner, symbol), this->owner, value);
     else
         this->values.find(symbol)->second = value;
 }
 
-ObjectWeakRef<Object> Environment::EnvironmentLayer::EnvironmentProperty::get_value(
+std::optional<ObjectWeakRef<Object>> Environment::Layer::Property::get_value(
     ObjectWeakRef<Symbol> symbol) const
 {
     if (!this->has_symbol(symbol))
-        mthrow("The symbol " << symbol->get_name() << " is not in the environment property");
+        return std::nullopt;
     return this->values.find(symbol)->second;
 }
 
 // --------------------------------------------------------------------------------
 
-Environment::EnvironmentLayer::EnvironmentLayer(Environment& _owner)
+Environment::Layer::Layer(Environment& _owner)
     : owner(_owner)
 {
 }
 
-Environment::EnvironmentLayer::EnvironmentLayer(Environment& _owner, const EnvironmentLayer& other)
-    : EnvironmentLayer(_owner)
+Environment::Layer::Layer(Environment& _owner, const Layer& other)
+    : Layer(_owner)
 {
     for (auto& [key, value] : other.properties)
         this->properties.emplace(std::piecewise_construct,
@@ -72,18 +71,18 @@ Environment::EnvironmentLayer::EnvironmentLayer(Environment& _owner, const Envir
             std::forward_as_tuple(this->owner, value));
 }
 
-bool Environment::EnvironmentLayer::has_property(ObjectWeakRef<Symbol> property) const
+bool Environment::Layer::has_property(ObjectWeakRef<Symbol> property) const
 {
     return this->properties.contains(property);
 }
 
-bool Environment::EnvironmentLayer::has_symbol_property(
+bool Environment::Layer::has_symbol_property(
     ObjectWeakRef<Symbol> symbol, ObjectWeakRef<Symbol> property) const
 {
     return this->has_property(property) && this->properties.find(property)->second.has_symbol(symbol);
 }
 
-void Environment::EnvironmentLayer::insert(
+void Environment::Layer::insert(
     ObjectWeakRef<Symbol> symbol, ObjectWeakRef<Symbol> property, ObjectWeakRef<Object> value)
 {
     if (!this->has_property(property)) {
@@ -91,13 +90,13 @@ void Environment::EnvironmentLayer::insert(
             std::forward_as_tuple(this->owner, property),
             std::forward_as_tuple(this->owner));
     }
-    EnvironmentProperty& env_property = this->properties.find(property)->second;
+    Property& env_property = this->properties.find(property)->second;
     if (env_property.has_symbol(symbol))
         mthrow("The symbol " + symbol->get_name() + " already has the property " << property->get_name());
     env_property.insert(symbol, value);
 }
 
-void Environment::EnvironmentLayer::set_value(
+void Environment::Layer::set_value(
     ObjectWeakRef<Symbol> symbol, ObjectWeakRef<Symbol> property, ObjectWeakRef<Object> value)
 {
     if (!this->has_symbol_property(symbol, property))
@@ -105,7 +104,7 @@ void Environment::EnvironmentLayer::set_value(
     this->properties.find(symbol)->second.set_value(symbol, value);
 }
 
-void Environment::EnvironmentLayer::insert_or_set_value(
+void Environment::Layer::insert_or_set_value(
     ObjectWeakRef<Symbol> symbol, ObjectWeakRef<Symbol> property, ObjectWeakRef<Object> value)
 {
     if (!this->has_property(property)) {
@@ -116,32 +115,40 @@ void Environment::EnvironmentLayer::insert_or_set_value(
     this->properties.find(property)->second.insert_or_set_value(symbol, value);
 }
 
-ObjectWeakRef<Object> Environment::EnvironmentLayer::get_value(
+std::optional<ObjectWeakRef<Object>> Environment::Layer::get_value(
     ObjectWeakRef<Symbol> symbol, ObjectWeakRef<Symbol> property) const
 {
     if (!this->has_symbol_property(symbol, property))
-        mthrow("The symbol " << symbol->get_name() << " has not the property" << property->get_name());
+        return std::nullopt;
     return this->properties.find(property)->second.get_value(symbol);
 }
 
 // --------------------------------------------------------------------------------
 
-Environment::Environment(const Environment& other)
+Environment::WithLayer::WithLayer(Environment& _environment)
+    : environment(_environment)
 {
-    for (const EnvironmentLayer& layer : other.layers)
-        this->layers.emplace_back(*this, layer);
+    this->environment.layers.emplace_back(this->environment);
 }
 
-void Environment::push_layer()
+Environment::WithLayer::~WithLayer()
+{
+    this->environment.layers.pop_back();
+}
+
+// --------------------------------------------------------------------------------
+
+Environment::Environment(Alma& _alma)
+    : Object(_alma)
 {
     this->layers.emplace_back(*this);
 }
 
-void Environment::pop_layer()
+Environment::Environment(const Environment& other)
+    : Object(other)
 {
-    if (this->layers.empty())
-        mthrow("The lexical environment is empty.");
-    this->layers.pop_back();
+    for (const Layer& layer : other.layers)
+        this->layers.emplace_back(*this, layer);
 }
 
 bool Environment::has_symbol_property(ObjectWeakRef<Symbol> symbol, ObjectWeakRef<Symbol> property) const
@@ -175,47 +182,12 @@ void Environment::set_value(
     mthrow("The symbol " << symbol->get_name() << " has not the property " << property->get_name() << " in the lexcal environment");
 }
 
-ObjectWeakRef<Object> Environment::get_value(ObjectWeakRef<Symbol> symbol, ObjectWeakRef<Symbol> property) const
+std::optional<ObjectWeakRef<Object>> Environment::get_value(ObjectWeakRef<Symbol> symbol, ObjectWeakRef<Symbol> property) const
 {
     size_t len = this->layers.size();
     for (size_t i = 0; i < len; i++) {
         if (this->layers[len - i - 1].has_symbol_property(symbol, property))
             return this->layers[len - i - 1].get_value(symbol, property);
     }
-    mthrow("The symbol " + symbol->get_name() + " has not the property " << property->get_name() << " in the lexical environment");
-}
-
-// --------------------------------------------------------------------------------
-
-EnvironmentLayer::EnvironmentLayer(Environment& _environment)
-    : environment(_environment)
-{
-    environment.push_layer();
-}
-
-EnvironmentLayer::~EnvironmentLayer()
-{
-    environment.pop_layer();
-}
-
-bool EnvironmentLayer::has_symbol_property(ObjectWeakRef<Symbol> symbol, ObjectWeakRef<Symbol> property) const
-{
-    return this->environment.has_symbol_property(symbol, property);
-}
-
-void EnvironmentLayer::insert_or_set_value(
-    ObjectWeakRef<Symbol> symbol, ObjectWeakRef<Symbol> property, ObjectWeakRef<Object> value)
-{
-    this->environment.insert_or_set_value(symbol, property, value);
-}
-
-void EnvironmentLayer::set_value(
-    ObjectWeakRef<Symbol> symbol, ObjectWeakRef<Symbol> property, ObjectWeakRef<Object> value)
-{
-    this->environment.set_value(symbol, property, value);
-}
-
-ObjectWeakRef<Object> EnvironmentLayer::get_value(ObjectWeakRef<Symbol> symbol, ObjectWeakRef<Symbol> property) const
-{
-    return this->environment.get_value(symbol, property);
+    return std::nullopt;
 }

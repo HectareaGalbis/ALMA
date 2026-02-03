@@ -1,144 +1,95 @@
 
 #include "reader.hpp"
+#include "alma.hpp"
+#include "cons.hpp"
+#include "debug.hpp"
+#include "integer.hpp"
 #include "package.hpp"
+#include "string.hpp"
 #include <iostream>
 #include <regex>
 
-#define maybe(EXPR)                               \
-    if (std::shared_ptr<Object> __obj__ = EXPR) { \
-        return __obj__;                           \
+#define ithrow(MSG)                                                                         \
+    {                                                                                       \
+        std::stringstream gensym(ss);                                                       \
+        gensym(ss) << MSG;                                                                  \
+        gensym(ss) << this->name << "(" << this->line << ":" << this->pos << ") | " << MSG; \
+        throw std::runtime_error(gensym(ss).str());                                         \
     }
 
-std::shared_ptr<Object> reader::read(std::istream& input)
+#define iassert(COND, MSG) \
+    if (!(COND))           \
+    ithrow(MSG)
+
+bool Reader::Input::eof() const
 {
-    maybe(reader::read_whitespace(input)); // Consume whitespaces
-    maybe(reader::read_comment(input));
-    maybe(reader::read_list(input));
-    maybe(reader::read_quote(input));
-    maybe(reader::read_quasiquote(input));
-    maybe(reader::read_unquote(input));
-    maybe(reader::read_string(input));
-    maybe(reader::read_token(input));
-    return nullptr;
+    return this->input.eof();
 }
 
-std::shared_ptr<Object> reader::read_whitespace(std::istream& input)
+int Reader::Input::read_char()
 {
+    int c = this->input.get();
+    iassert(c != EOF, "Unexpected EOF");
+    this->pos++;
+    this->changed_line = (c == '\n');
+    if (this->changed_line)
+        this->line++;
+    return c;
+}
+
+void Reader::Input::unread_char()
+{
+    this->input.unget();
+    iassert(!this->input.fail(), "Error unreading the last character");
+    if (this->changed_line) {
+        this->line--;
+        this->changed_line = false;
+        this->pos--;
+    }
+}
+
+bool Reader::Input::read_whitespace()
+{
+    bool found = false;
     while (true) {
-        int c = input.get();
-        if (c == EOF)
-            return nullptr;
+        int c = this->read_char();
         if (!(c == ' ' || c == '\n' || c == '\t')) {
-            input.unget();
-            return nullptr;
+            this->unread_char();
+            break;
         }
+        found = true;
     }
+
+    return found;
 }
 
-std::shared_ptr<Object> reader::read_comment(std::istream& input)
+bool Reader::Input::read_comment()
 {
-    int c = input.get();
+    int c = this->read_char();
     if (c != ';') {
-        input.unget();
-        return nullptr;
+        this->unread_char();
+        return false;
     }
-    while (char d = input.get()) {
-        if (d == EOF || d == '\n')
-            break;
-    }
-    return reader::read_whitespace(input);
+    while (this->read_char() != '\n') { }
+    return true;
 }
 
-std::shared_ptr<Object> reader::read_list(std::istream& input)
+void Reader::Input::read_blank()
 {
-    int lp = input.get();
-    if (lp != '(') {
-        input.unget();
-        return nullptr;
-    }
-    std::vector<std::shared_ptr<Object>> objects;
-    while (input) {
-        std::shared_ptr<Object> object = reader::read(input);
-        if (!object)
-            break;
-        else
-            objects.push_back(std::move(object));
-    }
-    int rp = input.get();
-    if (rp != ')')
-        throw std::runtime_error("Expected the character ')' but found '" + std::string(1, (char)rp) + "'");
-
-    if (objects.empty())
-        return std::make_shared<Nil>();
-    else
-        return std::make_shared<Cons>(objects);
+    while (this->read_whitespace() || this->read_comment()) { }
 }
 
-std::shared_ptr<Object> reader::read_quote(std::istream& input)
+std::optional<ObjectWeakRef<String>> Reader::Input::read_string()
 {
-    int q = input.get();
-    if (q != '\'') {
-        input.unget();
-        return nullptr;
-    }
-    std::shared_ptr<Object> object = reader::read(input);
-    std::shared_ptr<Symbol> qs = *Package::almaPackage->find_symbol("quote");
-
-    return std::make_shared<Cons>(std::vector<std::shared_ptr<Object>> { qs, object });
-}
-
-static size_t quasiquote_level = 0;
-
-std::shared_ptr<Object> reader::read_quasiquote(std::istream& input)
-{
-    int q = input.get();
-    if (q != '`') {
-        input.unget();
-        return nullptr;
-    }
-    quasiquote_level++;
-    std::shared_ptr<Object> object = reader::read(input);
-    quasiquote_level--;
-    std::shared_ptr<Symbol> qs = *Package::almaPackage->find_symbol("quasiquote");
-
-    return std::make_shared<Cons>(std::vector<std::shared_ptr<Object>> { qs, object });
-}
-
-std::shared_ptr<Object> reader::read_unquote(std::istream& input)
-{
-    int q = input.get();
-    if (q != ',') {
-        input.unget();
-        return nullptr;
-    }
-    bool slice = true;
-    int s = input.get();
-    if (s != '@') {
-        slice = false;
-        input.unget();
-    }
-    if (quasiquote_level == 0)
-        throw std::runtime_error(std::string(slice ? "slice-unquote" : "unquote") + " outside quasiquote");
-
-    quasiquote_level--;
-    std::shared_ptr<Object> object = reader::read(input);
-    quasiquote_level++;
-    std::shared_ptr<Symbol> qs = *Package::almaPackage->find_symbol(slice ? "slice-unquote" : "unquote");
-
-    return std::make_shared<Cons>(std::vector<std::shared_ptr<Object>> { qs, object });
-}
-
-std::shared_ptr<Object> reader::read_string(std::istream& input)
-{
-    int q = input.get();
+    int q = this->read_char();
     if (q != '"') {
-        input.unget();
-        return nullptr;
+        this->unread_char();
+        return std::nullopt;
     }
     std::string content;
     bool next_special = false;
     while (input) {
-        int d = input.get();
+        int d = this->read_char();
         if (next_special) {
             switch (d) {
             case 'n':
@@ -167,7 +118,116 @@ std::shared_ptr<Object> reader::read_string(std::istream& input)
                 content.push_back(d);
         }
     }
-    return std::make_shared<String>(content);
+    return this->alma.make<String>(content);
+}
+
+std::optional<ObjectWeakRef<Object>> Reader::Input::read_list()
+{
+    // Read left paren
+    {
+        int lp = this->read_char();
+        if (lp != '(') {
+            this->unread_char();
+            return std::nullopt;
+        }
+    }
+
+    // Read list objects
+    std::vector<ObjectWeakRef<Object>> objects;
+    while (input) {
+        std::optional<ObjectWeakRef<Object>> object = this->read_next_object();
+        if (object)
+            objects.push_back(*object);
+        else
+            break;
+    }
+
+    // Read dot
+    bool proper_list = true;
+    {
+        int dot = this->read_char();
+        if (dot == '.')
+            proper_list = false;
+        else
+            this->unread_char();
+    }
+
+    // Read non proper object
+    std::optional<ObjectWeakRef<Object>> non_proper_object;
+    if (!proper_list) {
+        non_proper_object = this->read_next_object();
+        iassert(non_proper_object, "Expected an object after the dot character");
+        this->read_blank();
+    }
+
+    // Read right paren
+    {
+        int rp = this->read_char();
+        iassert(rp == ')', "Expected the character ')' but found '" << static_cast<char>(rp) << "'");
+    }
+
+    // Make result
+    if (objects.empty())
+        return this->alma.find_alma_symbol("nil");
+    else if (non_proper_object) {
+        return this->alma.make<Cons>(objects, *non_proper_object);
+    } else {
+        return this->alma.make<Cons>(objects);
+    }
+}
+
+std::optional<ObjectWeakRef<Object>> Reader::Input::read_quote()
+{
+    int q = this->read_char();
+    if (q != '\'') {
+        this->unread_char();
+        return std::nullopt;
+    }
+    std::optional<ObjectWeakRef<Object>> object = this->read_next_object();
+    iassert(object, "Expected an object after the quote");
+    ObjectWeakRef<Object> qs = this->alma.find_alma_symbol("quote");
+
+    return this->alma.make<Cons>(std::vector<ObjectWeakRef<Object>> { qs, *object });
+}
+
+std::optional<ObjectWeakRef<Object>> Reader::Input::read_quasiquote()
+{
+    int q = this->read_char();
+    if (q != '`') {
+        this->unread_char();
+        return std::nullopt;
+    }
+    this->quasiquote_level++;
+    std::optional<ObjectWeakRef<Object>> object = this->read_next_object();
+    iassert(object, "Expected an object after the backquote");
+    this->quasiquote_level--;
+    ObjectWeakRef<Object> qs = this->alma.find_alma_symbol("quasiquote");
+
+    return this->alma.make<Cons>(std::vector<ObjectWeakRef<Object>> { qs, *object });
+}
+
+std::optional<ObjectWeakRef<Object>> Reader::Input::read_unquote()
+{
+    int q = this->read_char();
+    if (q != ',') {
+        this->unread_char();
+        return std::nullopt;
+    }
+    bool slice = true;
+    int s = this->read_char();
+    if (s != '@') {
+        slice = false;
+        this->unread_char();
+    }
+    iassert(quasiquote_level != 0, (slice ? "slice-unquote" : "unquote") << " outside quasiquote");
+
+    quasiquote_level--;
+    std::optional<ObjectWeakRef<Object>> object = this->read_next_object();
+    iassert(object, "Expected an object after the " << (slice ? "slice-unquote" : "unquote"));
+    quasiquote_level++;
+    ObjectWeakRef<Object> qs = this->alma.find_alma_symbol(slice ? "slice-unquote" : "unquote");
+
+    return this->alma.make<Cons>(std::vector<ObjectWeakRef<Object>> { qs, *object });
 }
 
 static bool is_token_character(int c)
@@ -176,14 +236,14 @@ static bool is_token_character(int c)
         || (c >= '<' && c <= 'Z') || c == '_' || (c >= 'a' && c <= 'z');
 }
 
-static std::shared_ptr<Integer> parse_number(const std::string& token)
+static std::optional<ObjectWeakRef<Integer>> parse_number(const std::string& token, Alma& alma)
 {
     std::regex int_regex(R"(^[+-]?\d+$)");
     if (std::regex_match(token, int_regex)) {
         int64_t value = std::stoll(token);
-        return std::make_shared<Integer>(value);
+        return alma.make<Integer>(value);
     }
-    return nullptr;
+    return std::nullopt;
 }
 
 static std::pair<size_t, size_t> find_next_delimiter(const std::string& s, const std::vector<std::string>& delimiters, size_t start)
@@ -214,45 +274,78 @@ static std::vector<std::string> splitString(const std::string& s, const std::vec
 
 static std::vector<std::string> parse_token(const std::string& token)
 {
-    return splitString(token, { "::", ":" }); // Order matters. Most specific first
+    return splitString(token, { ":" }); // Order matters. Most specific first
 }
 
-static std::shared_ptr<Symbol> findSymbol(const std::vector<std::string>& splittedTokens)
+// TODO: Hacer 1-lisp
+// TODO: Crear arrays [m 0 1]
+// TODO: Hacer diccionarios {a 3 b 4 c 5}
+
+ObjectWeakRef<Symbol> Reader::Input::findSymbol(const std::vector<std::string>& splittedTokens)
 {
-    std::shared_ptr<Package> packageIt = Package::currentPackage;
+    ObjectWeakRef<Package> packageIt = alma.get_current_package();
     for (size_t i = 0; i < splittedTokens.size() - 1; i++) {
-        std::shared_ptr<Symbol> packageSymbol = packageIt->intern_symbol(splittedTokens[i]);
-        if (!packageSymbol->package) {
+        ObjectWeakRef<Symbol> packageSymbol = packageIt->intern_symbol(splittedTokens[i]);
+        std::optional<ObjectWeakRef<Package>> next_package = packageSymbol->get_package();
+        if (!next_package) {
             std::string currentSymbol;
             for (size_t j = 0; j < i; j++)
-                currentSymbol += splittedTokens[j] + "::";
+                currentSymbol += splittedTokens[j] + ":";
             currentSymbol += splittedTokens[i];
-            throw std::runtime_error("The symbol " + currentSymbol + " does not denote a package.");
+            ithrow("The symbol " << currentSymbol << " does not denote a package.");
         }
-        packageIt = packageSymbol->package;
+        packageIt = *next_package;
     }
     return packageIt->intern_symbol(splittedTokens.back());
 }
 
-std::shared_ptr<Object> reader::read_token(std::istream& input)
+std::optional<ObjectWeakRef<Object>> Reader::Input::read_token()
 {
-    int c = input.peek();
+    int c = this->input.peek();
     if (!is_token_character(c))
-        return nullptr;
+        return std::nullopt;
     std::string token;
     while (input) {
-        int d = input.get();
+        int d = this->read_char();
         if (!is_token_character(d)) {
-            input.unget();
+            this->unread_char();
             break;
         }
         token.push_back(d);
     }
 
-    std::shared_ptr<Integer> number = parse_number(token);
+    std::optional<ObjectWeakRef<Integer>> number = parse_number(token, this->alma);
     if (number)
         return number;
 
     std::vector<std::string> splittedTokens = parse_token(token);
     return findSymbol(splittedTokens);
+}
+
+#define maybe(EXPR)            \
+    if (auto __obj__ = EXPR) { \
+        return __obj__;        \
+    }
+
+std::optional<ObjectWeakRef<Object>> Reader::Input::read_next_object()
+{
+    this->read_blank();
+    maybe(this->read_string());
+    maybe(this->read_list());
+    maybe(this->read_quote());
+    maybe(this->read_quasiquote());
+    maybe(this->read_unquote());
+    maybe(this->read_token());
+    ithrow("Unexpected token " << this->input.peek());
+}
+
+std::optional<ObjectWeakRef<Object>> Reader::read(bool eof)
+{
+    try {
+        return this->input.read_next_object();
+    } catch (const std::runtime_error& e) {
+        if (this->input.eof() && eof)
+            return std::nullopt;
+        throw e;
+    }
 }

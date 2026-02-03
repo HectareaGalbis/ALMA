@@ -5,11 +5,10 @@
 
 void intern_special_operators();
 
-#define declare_special_operator(name)                                                 \
-    class name : public Procedure {                                                    \
-    public:                                                                            \
-        virtual ObjectWeakRef<Object> apply(                                           \
-            const std::vector<ObjectWeakRef<Object>>& arguments, Alma& alma) override; \
+#define declare_special_operator(name)                                                           \
+    class name : public Procedure {                                                              \
+    public:                                                                                      \
+        virtual ObjectWeakRef<Object> apply(ObjectWeakRef<Cons> arguments, Alma& alma) override; \
     }
 
 declare_special_operator(progn);

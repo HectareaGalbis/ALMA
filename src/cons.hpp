@@ -10,53 +10,17 @@ private:
     ObjectRef<Object> cdr;
 
 public:
-    class iterator {
-    private:
-        Alma& alma;
-        std::optional<ObjectWeakRef<Cons>> ref; // cons or nil
+    Cons(Alma& alma, ObjectWeakRef<Object> _car, ObjectWeakRef<Object> _cdr);
+    Cons(Alma& alma, const std::vector<ObjectWeakRef<Object>>& list);
+    Cons(Alma& alma, const std::vector<ObjectWeakRef<Object>>& list, ObjectWeakRef<Object> non_proper_element);
 
-    private:
-        void increment();
+    std::pair<std::vector<ObjectWeakRef<Object>>, ObjectWeakRef<Object>> to_list() const;
 
-    public:
-        iterator(Alma& alma);
-        iterator(ObjectWeakRef<Cons> ref, Alma& alma);
-        iterator(const iterator& other);
+    virtual ObjectWeakRef<Object> eval(ObjectWeakRef<Object> self, ObjectWeakRef<Environment> enviroment)
+        override;
+    virtual std::string to_string(ObjectWeakRef<Object> self) override;
+    virtual bool typep(ObjectWeakRef<Object> self, ObjectWeakRef<Object> type) override;
 
-        iterator& operator=(const iterator& other);
-
-        iterator& operator++();
-        iterator operator++(int);
-
-        bool operator==(const iterator& other) const;
-        bool operator!=(const iterator& other) const;
-
-        Object& operator*();
-        Object* operator->();
-
-        template <typename T>
-            requires std::is_base_of_v<T, Cons>
-        operator ObjectWeakRef<T>();
-    };
-
-public:
-    Cons(ObjectWeakRef<Object> _car, ObjectWeakRef<Object> _cdr);
-    // Cons(const std::vector<ObjectWeakRef<Object>>& list);
-
-    virtual ObjectWeakRef<Object> eval(ObjectWeakRef<Object> self, Alma& alma) const override;
-    virtual std::string to_string(ObjectWeakRef<Object> self, Alma& alma) const override;
-    virtual bool typep(ObjectWeakRef<Object> self, ObjectWeakRef<Object> type, Alma& alma) const override;
-
-    iterator begin(Alma& alma);
-    iterator end(Alma& alma);
+    ObjectWeakRef<Object> get_car();
+    ObjectWeakRef<Object> get_cdr();
 };
-
-template <typename T>
-    requires std::is_base_of_v<T, Cons>
-Cons::iterator::operator ObjectWeakRef<T>()
-{
-    return this->ref;
-}
-
-#define alma_for_each(VAR, LIST, ALMA) \
-    for (auto VAR = LIST->begin(ALMA); VAR != LIST->end(ALMA); ++VAR)

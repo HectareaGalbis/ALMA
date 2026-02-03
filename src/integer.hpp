@@ -9,11 +9,10 @@ private:
     int64_t value;
 
 public:
-    Integer(int64_t _value);
+    Integer(Alma& alma, int64_t _value);
 
-    virtual GCObjectRef eval(GCObjectRef obj, Environment& lex_env) const override;
-    virtual std::string to_string() const override;
-    virtual bool typep(const std::shared_ptr<Symbol>& sym) const override;
+    virtual std::string to_string(ObjectWeakRef<Object> self) override;
+    virtual bool typep(ObjectWeakRef<Object> self, ObjectWeakRef<Object> type) override;
 
     int64_t operator*() const;
 };

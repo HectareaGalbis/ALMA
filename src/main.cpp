@@ -1,9 +1,6 @@
 
 
-#include "function.hpp"
-#include "macro.hpp"
-#include "special_operator.hpp"
-#include "symbol.hpp"
+#include "alma.hpp"
 #include <filesystem>
 #include <iostream>
 
@@ -11,48 +8,33 @@ void showUsage()
 {
     std::string message;
     message = R"END(
- ALMA  Copyright (C) 2025  Héctor Galbis Sanchis
+ ALMA  Copyright (C) 2026  Héctor Galbis Sanchis
 
- This is the ALMA compiler. This is for now a proof of concept.
+ This is the ALMA interpreter. This is for now a proof of concept.
 
  Usage:
 
-   alma [input [output]]
+   alma input
  )END";
 
     std::cout << message << std::endl;
 }
 
-int main( // int argc, char* argv[]
-)
+int main(int argc, char* argv[])
 {
-    // if (argc > 3) {
-    //     std::cerr << "Too many arguments" << std::endl;
-    //     showUsage();
-    //     exit(1);
-    // }
+    if (argc != 2) {
+        std::cerr << "Expected 2 arguments" << std::endl;
+        showUsage();
+        exit(1);
+    }
 
-    // std::filesystem::path file(argv[1]);
-    // if (argc == 3) {
-    //     std::filesystem::path output(argv[2]);
-    //     Emitter::emitter = std::make_unique<std::ofstream>(output);
-    // }
+    Alma alma;
 
-    // Package::initAlmaPackage();
-    // intern_special_operators();
-    // intern_functions();
-    // intern_macros();
-    // intern_symbols();
-
-    // try {
-    //     Environment lex_env;
-    //     ast ast;
-    //     ast.read(file);
-    //     // ast.print();
-    //     ast.eval(lex_env);
-    // } catch (std::runtime_error& e) {
-    //     std::cout << e.what() << std::endl;
-    // }
+    try {
+        alma.load(argv[1]);
+    } catch (std::runtime_error& e) {
+        std::cout << e.what() << std::endl;
+    }
 
     return 0;
 }

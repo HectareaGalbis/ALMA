@@ -2,75 +2,114 @@
 #pragma once
 
 #include "object.hpp"
-#include <string>
+#include "symbol.hpp"
+#include <optional>
+#include <vector>
 
 class Environment;
-class Symbol;
-class Cons;
+
+// -----------------------------------------------------------------------------
 
 class Procedure : public Object {
-public:
-    virtual bool typep(ObjectWeakRef<Object> self, ObjectWeakRef<Object> type, Alma& alma) const override;
+protected:
+    virtual ObjectWeakRef<Object> eval_body(
+        const std::vector<ObjectWeakRef<Object>>& arg_list,
+        ObjectWeakRef<Environment> enviroment)
+        = 0;
 
-    virtual ObjectWeakRef<Object> apply(ObjectWeakRef<Cons> arguments, Alma& alma) = 0;
+    void check_types(
+        const std::vector<ObjectWeakRef<Object>>& arg_list,
+        const std::vector<std::string>& alma_types);
+    void check_types(
+        const std::vector<ObjectWeakRef<Object>>& arg_list,
+        const std::vector<std::string>& alma_types,
+        const std::string& alma_rest_type);
+
+public:
+    Procedure(Alma& alma);
+
+    virtual bool typep(ObjectWeakRef<Object> self, ObjectWeakRef<Object> type) override;
+    virtual ObjectWeakRef<Object> apply(
+        ObjectWeakRef<Object> self,
+        const std::vector<ObjectWeakRef<Object>>& arg_list,
+        ObjectWeakRef<Environment> enviroment) override;
 };
 
-struct Function : Procedure {
+// -----------------------------------------------------------------------------
+
+class Function : public Procedure {
+public:
+    Function(Alma& alma);
+    virtual bool typep(ObjectWeakRef<Object> self, ObjectWeakRef<Object> type) override;
+    virtual ObjectWeakRef<Object> apply(
+        ObjectWeakRef<Object> self,
+        const std::vector<ObjectWeakRef<Object>>& arg_list,
+        ObjectWeakRef<Environment> enviroment) override;
+};
+
+// -----------------------------------------------------------------------------
+
+class Macro : public Procedure {
+public:
+    Macro(Alma& alma);
+    ObjectWeakRef<Object> expand(
+        const std::vector<ObjectWeakRef<Object>>& arg_list,
+        ObjectWeakRef<Environment> enviroment);
+    virtual bool typep(ObjectWeakRef<Object> self, ObjectWeakRef<Object> type) override;
+    virtual ObjectWeakRef<Object> apply(
+        ObjectWeakRef<Object> self,
+        const std::vector<ObjectWeakRef<Object>>& arg_list,
+        ObjectWeakRef<Environment> enviroment) override;
+};
+
+// -----------------------------------------------------------------------------
+
+class FunctionUser : public Function {
 private:
-    static std::vector<ObjectWeakRef<Object>> eval_args(
-        const std::vector<ObjectWeakRef<Object>>& args,
-        Alma& alma);
+    std::vector<ObjectTrackedRef<Symbol>> param_list;
+    std::optional<ObjectRef<Symbol>> param_rest;
+    mutable ObjectRef<Environment> closure;
+    std::vector<ObjectTrackedRef<Object>> body;
 
 protected:
-    virtual ObjectWeakRef<Object> eval_body(const std::vector<ObjectWeakRef<Object>>& args, Alma& alma) = 0;
+    virtual ObjectWeakRef<Object> eval_body(
+        const std::vector<ObjectWeakRef<Object>>& arg_list,
+        ObjectWeakRef<Environment> enviroment) override;
 
 public:
-    virtual ObjectWeakRef<Object> apply(ObjectWeakRef<Cons> arguments, Alma& alma) override;
-
-    virtual bool typep(ObjectWeakRef<Object> self, ObjectWeakRef<Object> type, Alma& alma) const override;
-};
-
-struct FunctionUser : Function {
-    ObjectRef<Environment> closure;
-    std::vector<ObjectRef<Symbol>> params;
-    std::vector<ObjectRef<Object>> body;
-
-    FunctionUser(ObjectWeakRef<Environment> closure,
-        const std::vector<ObjectWeakRef<Symbol>>& params,
+    FunctionUser(
+        Alma& alma,
+        const std::vector<ObjectWeakRef<Object>>& param_list,
+        const std::optional<ObjectWeakRef<Object>>& param_rest,
+        ObjectWeakRef<Environment> closure,
         const std::vector<ObjectWeakRef<Object>>& body);
 
-protected:
-    virtual ObjectWeakRef<Object> eval_body(const std::vector<ObjectWeakRef<Object>>& args, Alma& alma) override;
-    virtual bool typep(ObjectWeakRef<Object> self, ObjectWeakRef<Object> type, Alma& alma) const override;
+    virtual bool typep(ObjectWeakRef<Object> self, ObjectWeakRef<Object> type) override;
 };
 
-struct Macro : Procedure {
-    template <typename Name>
-    Macro(Name&& _name)
-        : Procedure(std::forward<Name>(_name))
-    {
-    }
+// -----------------------------------------------------------------------------
+
+class MacroUser : public Macro {
+private:
+    std::vector<ObjectTrackedRef<Symbol>> param_list;
+    std::optional<ObjectRef<Symbol>> param_rest;
+    mutable ObjectRef<Environment> closure;
+    std::vector<ObjectTrackedRef<Object>> body;
 
 protected:
-    virtual ObjectWeakRef<Object> eval_body(const std::vector<ObjectWeakRef<Object>>& args, Alma& alma) = 0;
+    virtual ObjectWeakRef<Object> eval_body(
+        const std::vector<ObjectWeakRef<Object>>& arg_list,
+        ObjectWeakRef<Environment> enviroment) override;
 
 public:
-    virtual ObjectWeakRef<Object> apply(ObjectWeakRef<Cons> arguments, Alma& alma) override;
-    ObjectWeakRef<Object> expand(const std::vector<ObjectWeakRef<Object>>& arguments, Alma& alma);
-
-    virtual bool typep(ObjectWeakRef<Object> self, ObjectWeakRef<Object> type, Alma& alma) const override;
-};
-
-struct MacroUser : Macro {
-    ObjectRef<Environment> closure;
-    std::vector<ObjectRef<Symbol>> params;
-    std::vector<ObjectRef<Object>> body;
-
-    MacroUser(ObjectWeakRef<Environment> closure,
-        const std::vector<ObjectWeakRef<Symbol>>& params,
+    MacroUser(
+        Alma& alma,
+        const std::vector<ObjectWeakRef<Object>>& param_list,
+        const std::optional<ObjectWeakRef<Object>>& param_rest,
+        ObjectWeakRef<Environment> closure,
         const std::vector<ObjectWeakRef<Object>>& body);
 
-protected:
-    virtual ObjectWeakRef<Object> eval_body(const std::vector<ObjectWeakRef<Object>>& args, Alma& alma) override;
-    virtual bool typep(ObjectWeakRef<Object> self, ObjectWeakRef<Object> type, Alma& alma) const override;
+    virtual bool typep(ObjectWeakRef<Object> self, ObjectWeakRef<Object> type) override;
 };
+
+// -----------------------------------------------------------------------------

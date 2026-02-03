@@ -1,29 +1,64 @@
 
 #include "object.hpp"
 #include "alma.hpp"
+#include "debug.hpp"
 #include "package.hpp"
 #include "util.hpp"
 #include <iostream>
 #include <optional>
 
-ObjectWeakRef<> Object::eval(ObjectWeakRef<> self, Alma& alma [[maybe_unused]])
+void Object::protect_object(Alma& alma, GCObject* object)
+{
+    alma.gc.track_root_object(object);
+}
+
+void Object::unprotect_object(Alma& alma, GCObject* object)
+{
+    alma.gc.untrack_root_object(object);
+}
+
+Object::Object(Alma& _alma)
+    : alma(_alma)
+{
+}
+
+Object::Object(const Object& other)
+    : alma(other.alma)
+{
+}
+
+Object::Object(const Object&& other)
+    : alma(other.alma)
+{
+}
+
+ObjectWeakRef<Object> Object::eval(
+    ObjectWeakRef<Object> self, ObjectWeakRef<Environment> environment [[maybe_unused]])
 {
     return self;
 }
 
-std::string Object::to_string(ObjectWeakRef<> self [[maybe_unused]], Alma& alma [[maybe_unused]]) const
+ObjectWeakRef<Object> Object::apply(
+    ObjectWeakRef<Object> self,
+    const std::vector<ObjectWeakRef<Object>>& arg_list [[maybe_unused]],
+    ObjectWeakRef<Environment> enviroment [[maybe_unused]])
+{
+    mthrow("The object " << this->to_string(self) << " is not applicable");
+}
+
+std::string Object::to_string(ObjectWeakRef<Object> self [[maybe_unused]])
 {
     std::stringstream ss;
     ss << "<" << this << ">";
     return ss.str();
 }
 
-bool Object::typep(ObjectWeakRef<> self [[maybe_unused]], ObjectWeakRef<> type, Alma& alma) const
+bool Object::typep(ObjectWeakRef<Object> self [[maybe_unused]], ObjectWeakRef<Object> type)
 {
-    return type == alma.alma_package->find_symbol("t", alma);
+    return type == this->alma.find_alma_symbol("t");
 }
 
-bool Object::truep(ObjectWeakRef<Object> self, Alma& alma) const
+Object::operator bool()
 {
-    return self != alma.alma_package->find_symbol("nil", alma);
+    return this != this->alma.find_alma_symbol("nil").get();
 }
