@@ -1,12 +1,20 @@
 
 #include "garbage-collector.hpp"
+#include "alma.hpp"
+#include "debug.hpp"
+#include "object.hpp"
 #include <stdexcept>
 
 // --------------------------------------------------------------------------------
 
 GarbageCollector::GarbageCollector()
-    : max_objects(1024)
+    : max_objects(0)
 {
+}
+
+GarbageCollector::~GarbageCollector()
+{
+    this->collect();
 }
 
 void GarbageCollector::save_object(GCObject& obj)
@@ -41,9 +49,9 @@ void GarbageCollector::mark()
 
 void GarbageCollector::sweep()
 {
-    for (GCObject* obj : this->safe_pool)
+    for (GCObject* obj : this->object_pool)
         delete obj;
-    this->safe_pool.clear();
+    this->object_pool.clear();
 }
 
 void GarbageCollector::swap_pools()
@@ -51,22 +59,23 @@ void GarbageCollector::swap_pools()
     std::swap(this->object_pool, this->safe_pool);
 }
 
-void GarbageCollector::track_root_object(GCObject*& ref)
+void GarbageCollector::track_root_object(GCObject** ref)
 {
-    this->root_objects.insert(&ref);
+    // debugf("Rooting " << *ref);
+    this->root_objects.insert(ref);
 }
 
-void GarbageCollector::untrack_root_object(GCObject*& ref)
+void GarbageCollector::untrack_root_object(GCObject** ref)
 {
-    if (!this->root_objects.contains(&ref))
+    if (!this->root_objects.contains(ref))
         throw std::runtime_error("Trying to untrack a non-tracked root object");
-    this->root_objects.erase(&ref);
+    // debugf("Unrooting " << *ref);
+    this->root_objects.erase(ref);
 }
 
 void GarbageCollector::collect()
 {
     if (this->root_objects.empty()) {
-        this->swap_pools();
         this->sweep();
     } else {
         this->mark();
@@ -86,6 +95,11 @@ void GarbageCollector::try_collect()
     }
 }
 
+size_t GarbageCollector::size() const
+{
+    return this->root_objects.size() + this->object_pool.size() + this->safe_pool.size();
+}
+
 // --------------------------------------------------------------------------------
 
 std::unordered_set<GCObject**>& GCObject::get_references()
@@ -101,6 +115,7 @@ void GCObject::track_reference(GCObject** ref)
 {
     if (this->is_reference_tracked(ref))
         throw std::runtime_error("Trying to track an already tracked reference.");
+    // debugf("Tracking " << *ref);
     this->references.insert(ref);
 }
 
@@ -108,5 +123,6 @@ void GCObject::untrack_reference(GCObject** ref)
 {
     if (!this->is_reference_tracked(ref))
         throw std::runtime_error("Trying to untrack an untracked reference.");
+    // debugf("Untracking " << *ref);
     this->references.erase(ref);
 }

@@ -10,23 +10,23 @@
 
 // --------------------------------------------------------------------------------
 
-ObjectWeakRef<Object> Sum::eval_body(
-    const std::vector<ObjectWeakRef<Object>>& arg_list,
-    ObjectWeakRef<Environment> environment [[maybe_unused]])
+ObjectRef<Object> Sum::eval_body(
+    const std::vector<ObjectRef<Object>>& arg_list,
+    ObjectRef<Environment> environment [[maybe_unused]])
 {
     this->check_types(arg_list, {}, "integer");
     int64_t sum_value = 0;
-    for (ObjectWeakRef<Object> arg : arg_list) {
-        sum_value += *arg.as<Integer>();
+    for (ObjectRef<Object> arg : arg_list) {
+        sum_value += arg.as<Integer>()->get_value();
     }
     return this->alma.make<Integer>(sum_value);
 }
 
 // --------------------------------------------------------------------------------
 
-ObjectWeakRef<Object> Print::eval_body(
-    const std::vector<ObjectWeakRef<Object>>& arg_list,
-    ObjectWeakRef<Environment> environment [[maybe_unused]])
+ObjectRef<Object> Print::eval_body(
+    const std::vector<ObjectRef<Object>>& arg_list,
+    ObjectRef<Environment> environment [[maybe_unused]])
 {
     this->check_types(arg_list, { "t" });
     std::cout << this->alma.to_string(arg_list.front()) << std::endl;
@@ -35,9 +35,9 @@ ObjectWeakRef<Object> Print::eval_body(
 
 // --------------------------------------------------------------------------------
 
-ObjectWeakRef<Object> Typep::eval_body(
-    const std::vector<ObjectWeakRef<Object>>& arg_list,
-    ObjectWeakRef<Environment> environment [[maybe_unused]])
+ObjectRef<Object> Typep::eval_body(
+    const std::vector<ObjectRef<Object>>& arg_list,
+    ObjectRef<Environment> environment [[maybe_unused]])
 {
     this->check_types(arg_list, { "t", "symbol" });
     bool correct_type = this->alma.typep(arg_list[0], arg_list[1]);
@@ -46,9 +46,9 @@ ObjectWeakRef<Object> Typep::eval_body(
 
 // --------------------------------------------------------------------------------
 
-ObjectWeakRef<Object> Set_symbol_value::eval_body(
-    const std::vector<ObjectWeakRef<Object>>& arg_list,
-    ObjectWeakRef<Environment> environment [[maybe_unused]])
+ObjectRef<Object> Set_symbol_value::eval_body(
+    const std::vector<ObjectRef<Object>>& arg_list,
+    ObjectRef<Environment> environment [[maybe_unused]])
 {
     this->check_types(arg_list, { "symbol", "t" });
     return this->alma.set_symbol_value(arg_list[0], arg_list[1]);
@@ -56,9 +56,9 @@ ObjectWeakRef<Object> Set_symbol_value::eval_body(
 
 // --------------------------------------------------------------------------------
 
-ObjectWeakRef<Object> Setq::eval_body(
-    const std::vector<ObjectWeakRef<Object>>& arg_list,
-    ObjectWeakRef<Environment> environment [[maybe_unused]])
+ObjectRef<Object> Setq::eval_body(
+    const std::vector<ObjectRef<Object>>& arg_list,
+    ObjectRef<Environment> environment [[maybe_unused]])
 {
     this->check_types(arg_list, { "symbol", "t" });
     return this->alma.setq(arg_list[0], arg_list[1]);
@@ -66,9 +66,9 @@ ObjectWeakRef<Object> Setq::eval_body(
 
 // --------------------------------------------------------------------------------
 
-ObjectWeakRef<Object> Car::eval_body(
-    const std::vector<ObjectWeakRef<Object>>& arg_list,
-    ObjectWeakRef<Environment> environment [[maybe_unused]])
+ObjectRef<Object> Car::eval_body(
+    const std::vector<ObjectRef<Object>>& arg_list,
+    ObjectRef<Environment> environment [[maybe_unused]])
 {
     this->check_types(arg_list, { "cons" });
     return this->alma.car(arg_list[0]);
@@ -76,9 +76,9 @@ ObjectWeakRef<Object> Car::eval_body(
 
 // --------------------------------------------------------------------------------
 
-ObjectWeakRef<Object> Cdr::eval_body(
-    const std::vector<ObjectWeakRef<Object>>& arg_list,
-    ObjectWeakRef<Environment> environment [[maybe_unused]])
+ObjectRef<Object> Cdr::eval_body(
+    const std::vector<ObjectRef<Object>>& arg_list,
+    ObjectRef<Environment> environment [[maybe_unused]])
 {
     this->check_types(arg_list, { "cons" });
     return this->alma.cdr(arg_list[0]);
@@ -86,9 +86,9 @@ ObjectWeakRef<Object> Cdr::eval_body(
 
 // --------------------------------------------------------------------------------
 
-ObjectWeakRef<Object> Eq::eval_body(
-    const std::vector<ObjectWeakRef<Object>>& arg_list,
-    ObjectWeakRef<Environment> environment [[maybe_unused]])
+ObjectRef<Object> Eq::eval_body(
+    const std::vector<ObjectRef<Object>>& arg_list,
+    ObjectRef<Environment> environment [[maybe_unused]])
 {
     this->check_types(arg_list, { "t", "t" });
     return this->alma.boolean(this->alma.eq(arg_list[0], arg_list[1]));
@@ -96,9 +96,9 @@ ObjectWeakRef<Object> Eq::eval_body(
 
 // --------------------------------------------------------------------------------
 
-ObjectWeakRef<Object> Eval::eval_body(
-    const std::vector<ObjectWeakRef<Object>>& arg_list,
-    ObjectWeakRef<Environment> environment)
+ObjectRef<Object> Eval::eval_body(
+    const std::vector<ObjectRef<Object>>& arg_list,
+    ObjectRef<Environment> environment)
 {
     this->check_types(arg_list, { "t" });
 

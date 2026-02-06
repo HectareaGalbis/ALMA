@@ -7,11 +7,11 @@
 
 class Package : public Object {
 private:
-    std::map<std::string, ObjectRef<Symbol>> symbols;
+    std::map<std::string, ObjectTrackedRef<Symbol>> symbols;
 
 public:
     Package(Alma& alma);
-    ObjectWeakRef<Object> find_symbol(const std::string& name);
-    ObjectWeakRef<Symbol> intern_symbol(const std::string& name);
-    virtual bool typep(ObjectWeakRef<Object> self, ObjectWeakRef<Object> type) override;
+    ObjectRef<Object> find_symbol(const std::string& name);
+    ObjectRef<Symbol> intern_symbol(const std::string& name);
+    virtual bool typep(ObjectRef<Object> self, ObjectRef<Object> type) override;
 };

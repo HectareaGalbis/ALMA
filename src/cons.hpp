@@ -6,21 +6,22 @@
 
 class Cons : public Object {
 private:
-    ObjectRef<Object> car;
-    ObjectRef<Object> cdr;
+    ObjectTrackedRef<Object> car;
+    ObjectTrackedRef<Object> cdr;
 
 public:
-    Cons(Alma& alma, ObjectWeakRef<Object> _car, ObjectWeakRef<Object> _cdr);
-    Cons(Alma& alma, const std::vector<ObjectWeakRef<Object>>& list);
-    Cons(Alma& alma, const std::vector<ObjectWeakRef<Object>>& list, ObjectWeakRef<Object> non_proper_element);
+    Cons(Alma& alma, ObjectRef<Object> _car, ObjectRef<Object> _cdr);
+    Cons(Alma& alma, const std::vector<ObjectRef<Object>>& list);
+    Cons(Alma& alma, const std::vector<ObjectRef<Object>>& list, ObjectRef<Object> non_proper_element);
 
-    std::pair<std::vector<ObjectWeakRef<Object>>, ObjectWeakRef<Object>> to_list() const;
+    std::pair<std::vector<ObjectRef<Object>>, ObjectRef<Object>> to_list() const;
 
-    virtual ObjectWeakRef<Object> eval(ObjectWeakRef<Object> self, ObjectWeakRef<Environment> enviroment)
+    virtual ObjectRef<Object> eval(ObjectRef<Object> self, ObjectRef<Environment> enviroment)
         override;
-    virtual std::string to_string(ObjectWeakRef<Object> self) override;
-    virtual bool typep(ObjectWeakRef<Object> self, ObjectWeakRef<Object> type) override;
+    virtual std::string to_string(ObjectRef<Object> self) override;
+    virtual std::string to_string() override;
+    virtual bool typep(ObjectRef<Object> self, ObjectRef<Object> type) override;
 
-    ObjectWeakRef<Object> get_car();
-    ObjectWeakRef<Object> get_cdr();
+    ObjectRef<Object> get_car();
+    ObjectRef<Object> get_cdr();
 };

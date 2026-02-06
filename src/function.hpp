@@ -5,18 +5,18 @@
 
 // void intern_functions();
 
-#define declare_function(name)                                  \
-    class name : public Function {                              \
-    public:                                                     \
-        name(Alma& _alma)                                       \
-            : Function(_alma)                                   \
-        {                                                       \
-        }                                                       \
-                                                                \
-    protected:                                                  \
-        virtual ObjectWeakRef<Object> eval_body(                \
-            const std::vector<ObjectWeakRef<Object>>& arg_list, \
-            ObjectWeakRef<Environment> enviroment) override;    \
+#define declare_function(name)                              \
+    class name : public Function {                          \
+    public:                                                 \
+        name(Alma& _alma)                                   \
+            : Function(_alma)                               \
+        {                                                   \
+        }                                                   \
+                                                            \
+    protected:                                              \
+        virtual ObjectRef<Object> eval_body(                \
+            const std::vector<ObjectRef<Object>>& arg_list, \
+            ObjectRef<Environment> enviroment) override;    \
     };
 
 declare_function(Sum);

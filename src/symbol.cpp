@@ -27,10 +27,10 @@ Symbol::Symbol(Alma& _alma, const std::string& _name)
 {
 }
 
-ObjectWeakRef<Object> Symbol::eval(ObjectWeakRef<Object> self, ObjectWeakRef<Environment> environment)
+ObjectRef<Object> Symbol::eval(ObjectRef<Object> self, ObjectRef<Environment> environment)
 {
-    std::optional<ObjectWeakRef<Object>> lex_value
-        = environment->get_value(self, this->alma.find_alma_symbol("value"));
+    std::optional<ObjectRef<Object>> lex_value
+        = environment->get_value(self, this->alma.intern_alma_symbol("value"));
     if (lex_value) {
         return *lex_value;
     } else {
@@ -38,14 +38,19 @@ ObjectWeakRef<Object> Symbol::eval(ObjectWeakRef<Object> self, ObjectWeakRef<Env
     }
 }
 
-std::string Symbol::to_string(ObjectWeakRef<Object> self [[maybe_unused]])
+std::string Symbol::to_string(ObjectRef<Object> self [[maybe_unused]])
 {
     return this->name;
 }
 
-bool Symbol::typep(ObjectWeakRef<Object> self, ObjectWeakRef<Object> type)
+std::string Symbol::to_string()
 {
-    return type == this->alma.find_alma_symbol("symbol") || this->Object::typep(self, type);
+    return this->name;
+}
+
+bool Symbol::typep(ObjectRef<Object> self, ObjectRef<Object> type)
+{
+    return type == this->alma.intern_alma_symbol("symbol") || this->Object::typep(self, type);
 }
 
 std::string& Symbol::get_name()
@@ -58,21 +63,21 @@ const std::string& Symbol::get_name() const
     return this->name;
 }
 
-bool Symbol::has_property(ObjectWeakRef<Symbol> property)
+bool Symbol::has_property(ObjectRef<Symbol> property)
 {
     return (this->properties.contains(property) && this->properties.find(property)->second.size() > 0);
 }
 
-ObjectWeakRef<Object> Symbol::get_property(ObjectWeakRef<Symbol> property)
+ObjectRef<Object> Symbol::get_property(ObjectRef<Symbol> property)
 {
     auto it = this->properties.find(property);
     if (it != this->properties.end() && it->second.size() > 0) {
         return it->second.back();
     }
-    mthrow("No property " << property->get_name() << " found for the symbol " << this->name);
+    athrow("No property " << property->get_name() << " found for the symbol " << this->name);
 }
 
-void Symbol::set_property(ObjectWeakRef<Symbol> property, ObjectWeakRef<Object> value)
+void Symbol::set_property(ObjectRef<Symbol> property, ObjectRef<Object> value)
 {
     auto it = this->properties.find(property);
     if (it != this->properties.end() && it->second.size() > 0) {
@@ -81,15 +86,15 @@ void Symbol::set_property(ObjectWeakRef<Symbol> property, ObjectWeakRef<Object> 
     mthrow("No property " << property->get_name() << " found for the symbol " << this->name);
 }
 
-void Symbol::push_property(ObjectWeakRef<Symbol> property, ObjectWeakRef<Object> value)
+void Symbol::push_property(ObjectRef<Symbol> property, ObjectRef<Object> value)
 {
     auto it = this->properties.find(property);
     if (it == this->properties.end())
-        this->properties.try_emplace(ObjectTrackedRef<Symbol>(*this, property));
+        this->properties.try_emplace(ObjectTrackedKeyRef<Symbol>(*this, property));
     this->properties.find(property)->second.emplace_back(*this, value);
 }
 
-void Symbol::pop_property(ObjectWeakRef<Symbol> property)
+void Symbol::pop_property(ObjectRef<Symbol> property)
 {
     auto it = this->properties.find(property);
     if (it != this->properties.end() && it->second.size() > 0) {
@@ -100,50 +105,50 @@ void Symbol::pop_property(ObjectWeakRef<Symbol> property)
 
 bool Symbol::has_value()
 {
-    return this->has_property(this->alma.find_alma_symbol("value"));
+    return this->has_property(this->alma.intern_alma_symbol("value"));
 }
 
-ObjectWeakRef<Object> Symbol::get_value()
+ObjectRef<Object> Symbol::get_value()
 {
-    return this->get_property(this->alma.find_alma_symbol("value"));
+    return this->get_property(this->alma.intern_alma_symbol("value"));
 }
 
-void Symbol::set_value(ObjectWeakRef<Object> value)
+void Symbol::set_value(ObjectRef<Object> value)
 {
-    this->set_property(this->alma.find_alma_symbol("value"), value);
+    this->set_property(this->alma.intern_alma_symbol("value"), value);
 }
 
-void Symbol::push_value(ObjectWeakRef<Object> value)
+void Symbol::push_value(ObjectRef<Object> value)
 {
-    this->push_property(this->alma.find_alma_symbol("value"), value);
+    this->push_property(this->alma.intern_alma_symbol("value"), value);
 }
 
 void Symbol::pop_value()
 {
-    this->pop_property(this->alma.find_alma_symbol("value"));
+    this->pop_property(this->alma.intern_alma_symbol("value"));
 }
 
 bool Symbol::has_package()
 {
-    return this->has_property(this->alma.find_alma_symbol("package"));
+    return this->has_property(this->alma.intern_alma_symbol("package"));
 }
 
-ObjectWeakRef<Package> Symbol::get_package()
+ObjectRef<Package> Symbol::get_package()
 {
-    return this->get_property(this->alma.find_alma_symbol("package"));
+    return this->get_property(this->alma.intern_alma_symbol("package"));
 }
 
-void Symbol::set_package(ObjectWeakRef<Package> package)
+void Symbol::set_package(ObjectRef<Package> package)
 {
-    this->set_property(this->alma.find_alma_symbol("package"), package);
+    this->set_property(this->alma.intern_alma_symbol("package"), package);
 }
 
-void Symbol::push_package(ObjectWeakRef<Package> package)
+void Symbol::push_package(ObjectRef<Package> package)
 {
-    this->push_property(this->alma.find_alma_symbol("package"), package);
+    this->push_property(this->alma.intern_alma_symbol("package"), package);
 }
 
 void Symbol::pop_package()
 {
-    this->pop_property(this->alma.find_alma_symbol("package"));
+    this->pop_property(this->alma.intern_alma_symbol("package"));
 }

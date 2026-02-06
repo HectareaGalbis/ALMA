@@ -11,7 +11,7 @@
 template <typename T>
 void intern_special_operator(const std::string& name, Alma& alma)
 {
-    ObjectWeakRef<Symbol> sym = alma.alma_package->intern_symbol(name, alma);
+    ObjectRef<Symbol> sym = alma.alma_package->intern_symbol(name, alma);
     sym->set_function(alma.gc.make_object<T>());
 }
 
@@ -28,7 +28,7 @@ void intern_special_operators(Alma& alma)
 
 // --------------------------------------------------------------------------------
 
-ObjectWeakRef<Object> progn::apply(ObjectWeakRef<Cons> arguments, Alma& alma)
+ObjectRef<Object> progn::apply(ObjectRef<Cons> arguments, Alma& alma)
 {
     if (arguments.empty()) {
         return alma.boolean(false);
@@ -41,15 +41,15 @@ ObjectWeakRef<Object> progn::apply(ObjectWeakRef<Cons> arguments, Alma& alma)
 
 // --------------------------------------------------------------------------------
 
-static std::vector<std::pair<ObjectWeakRef<Symbol>, ObjectWeakRef<Object>>> parseBindings(
-    ObjectWeakRef<Cons> bindings, Alma& alma)
+static std::vector<std::pair<ObjectRef<Symbol>, ObjectRef<Object>>> parseBindings(
+    ObjectRef<Cons> bindings, Alma& alma)
 {
-    std::vector<std::pair<ObjectWeakRef<Symbol>, ObjectWeakRef<Object>>> parsedBindings;
+    std::vector<std::pair<ObjectRef<Symbol>, ObjectRef<Object>>> parsedBindings;
 
-    for (ObjectWeakRef<Object> element : bindings->toList()) {
+    for (ObjectRef<Object> element : bindings->toList()) {
         if (!alma.consp(element))
             throw std::runtime_error("Expected a binding clause (a list).");
-        std::vector<ObjectWeakRef<Object>> bindingList = element.as<Cons>()->toList();
+        std::vector<ObjectRef<Object>> bindingList = element.as<Cons>()->toList();
         if (bindingList.size() != 2)
             throw std::runtime_error("The binding clause must have 2 elements.");
         if (!alma.symbolp(bindingList[0]))
@@ -60,10 +60,10 @@ static std::vector<std::pair<ObjectWeakRef<Symbol>, ObjectWeakRef<Object>>> pars
     return parsedBindings;
 }
 
-static std::vector<std::pair<ObjectWeakRef<Symbol>, ObjectWeakRef<Object>>> evaluateBindings(
-    const std::vector<std::pair<ObjectWeakRef<Symbol>, ObjectWeakRef<Object>>>& bindings, Alma& alma)
+static std::vector<std::pair<ObjectRef<Symbol>, ObjectRef<Object>>> evaluateBindings(
+    const std::vector<std::pair<ObjectRef<Symbol>, ObjectRef<Object>>>& bindings, Alma& alma)
 {
-    std::vector<std::pair<ObjectWeakRef<Symbol>, ObjectWeakRef<Object>>> evaluatedBindings;
+    std::vector<std::pair<ObjectRef<Symbol>, ObjectRef<Object>>> evaluatedBindings;
 
     for (const auto& [var, value] : bindings) {
         evaluatedBindings.emplace_back(var, alma.eval(value));
@@ -72,7 +72,7 @@ static std::vector<std::pair<ObjectWeakRef<Symbol>, ObjectWeakRef<Object>>> eval
     return evaluatedBindings;
 }
 
-ObjectWeakRef<Object> let::apply(const std::vector<ObjectWeakRef<Object>>& arguments, Alma& alma)
+ObjectRef<Object> let::apply(const std::vector<ObjectRef<Object>>& arguments, Alma& alma)
 {
     massert(!arguments.empty(), "let needs at least a list");
 

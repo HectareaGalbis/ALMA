@@ -13,25 +13,26 @@ Environment::Layer::Property::Property(
     : Property(_owner)
 {
     for (auto& [key, value] : other.values)
-        this->values.try_emplace(ObjectTrackedRef<Symbol>(this->owner, key),
+        this->values.try_emplace(
+            ObjectTrackedKeyRef<Symbol>(this->owner, key),
             this->owner, value);
 }
 
-bool Environment::Layer::Property::has_symbol(ObjectWeakRef<Symbol> symbol) const
+bool Environment::Layer::Property::has_symbol(ObjectRef<Symbol> symbol) const
 {
     return this->values.contains(symbol);
 }
 
 void Environment::Layer::Property::insert(
-    ObjectWeakRef<Symbol> symbol, ObjectWeakRef<Object> value)
+    ObjectRef<Symbol> symbol, ObjectRef<Object> value)
 {
     if (this->has_symbol(symbol))
         mthrow("The symbol " << symbol->get_name() << " is already in the environment property");
-    this->values.try_emplace(ObjectTrackedRef<Symbol>(this->owner, symbol), this->owner, value);
+    this->values.try_emplace(ObjectTrackedKeyRef<Symbol>(this->owner, symbol), this->owner, value);
 }
 
 void Environment::Layer::Property::set_value(
-    ObjectWeakRef<Symbol> symbol, ObjectWeakRef<Object> value)
+    ObjectRef<Symbol> symbol, ObjectRef<Object> value)
 {
     if (!this->has_symbol(symbol))
         mthrow("The symbol " << symbol->get_name() << " is not in the environment property");
@@ -39,16 +40,16 @@ void Environment::Layer::Property::set_value(
 }
 
 void Environment::Layer::Property::insert_or_set_value(
-    ObjectWeakRef<Symbol> symbol, ObjectWeakRef<Object> value)
+    ObjectRef<Symbol> symbol, ObjectRef<Object> value)
 {
     if (!this->has_symbol(symbol))
-        this->values.try_emplace(ObjectTrackedRef<Symbol>(this->owner, symbol), this->owner, value);
+        this->values.try_emplace(ObjectTrackedKeyRef<Symbol>(this->owner, symbol), this->owner, value);
     else
         this->values.find(symbol)->second = value;
 }
 
-std::optional<ObjectWeakRef<Object>> Environment::Layer::Property::get_value(
-    ObjectWeakRef<Symbol> symbol) const
+std::optional<ObjectRef<Object>> Environment::Layer::Property::get_value(
+    ObjectRef<Symbol> symbol) const
 {
     if (!this->has_symbol(symbol))
         return std::nullopt;
@@ -71,19 +72,19 @@ Environment::Layer::Layer(Environment& _owner, const Layer& other)
             std::forward_as_tuple(this->owner, value));
 }
 
-bool Environment::Layer::has_property(ObjectWeakRef<Symbol> property) const
+bool Environment::Layer::has_property(ObjectRef<Symbol> property) const
 {
     return this->properties.contains(property);
 }
 
 bool Environment::Layer::has_symbol_property(
-    ObjectWeakRef<Symbol> symbol, ObjectWeakRef<Symbol> property) const
+    ObjectRef<Symbol> symbol, ObjectRef<Symbol> property) const
 {
     return this->has_property(property) && this->properties.find(property)->second.has_symbol(symbol);
 }
 
 void Environment::Layer::insert(
-    ObjectWeakRef<Symbol> symbol, ObjectWeakRef<Symbol> property, ObjectWeakRef<Object> value)
+    ObjectRef<Symbol> symbol, ObjectRef<Symbol> property, ObjectRef<Object> value)
 {
     if (!this->has_property(property)) {
         this->properties.emplace(std::piecewise_construct,
@@ -97,7 +98,7 @@ void Environment::Layer::insert(
 }
 
 void Environment::Layer::set_value(
-    ObjectWeakRef<Symbol> symbol, ObjectWeakRef<Symbol> property, ObjectWeakRef<Object> value)
+    ObjectRef<Symbol> symbol, ObjectRef<Symbol> property, ObjectRef<Object> value)
 {
     if (!this->has_symbol_property(symbol, property))
         mthrow("The symbol " << symbol->get_name() << " has not the property " << property->get_name());
@@ -105,7 +106,7 @@ void Environment::Layer::set_value(
 }
 
 void Environment::Layer::insert_or_set_value(
-    ObjectWeakRef<Symbol> symbol, ObjectWeakRef<Symbol> property, ObjectWeakRef<Object> value)
+    ObjectRef<Symbol> symbol, ObjectRef<Symbol> property, ObjectRef<Object> value)
 {
     if (!this->has_property(property)) {
         this->properties.emplace(std::piecewise_construct,
@@ -115,8 +116,8 @@ void Environment::Layer::insert_or_set_value(
     this->properties.find(property)->second.insert_or_set_value(symbol, value);
 }
 
-std::optional<ObjectWeakRef<Object>> Environment::Layer::get_value(
-    ObjectWeakRef<Symbol> symbol, ObjectWeakRef<Symbol> property) const
+std::optional<ObjectRef<Object>> Environment::Layer::get_value(
+    ObjectRef<Symbol> symbol, ObjectRef<Symbol> property) const
 {
     if (!this->has_symbol_property(symbol, property))
         return std::nullopt;
@@ -151,7 +152,7 @@ Environment::Environment(const Environment& other)
         this->layers.emplace_back(*this, layer);
 }
 
-bool Environment::has_symbol_property(ObjectWeakRef<Symbol> symbol, ObjectWeakRef<Symbol> property) const
+bool Environment::has_symbol_property(ObjectRef<Symbol> symbol, ObjectRef<Symbol> property) const
 {
     size_t len = this->layers.size();
     for (size_t i = 0; i < len; i++) {
@@ -162,7 +163,7 @@ bool Environment::has_symbol_property(ObjectWeakRef<Symbol> symbol, ObjectWeakRe
 }
 
 void Environment::insert_or_set_value(
-    ObjectWeakRef<Symbol> symbol, ObjectWeakRef<Symbol> property, ObjectWeakRef<Object> value)
+    ObjectRef<Symbol> symbol, ObjectRef<Symbol> property, ObjectRef<Object> value)
 {
     if (this->layers.empty())
         mthrow("The lexical environment is empty.");
@@ -170,7 +171,7 @@ void Environment::insert_or_set_value(
 }
 
 void Environment::set_value(
-    ObjectWeakRef<Symbol> symbol, ObjectWeakRef<Symbol> property, ObjectWeakRef<Object> value)
+    ObjectRef<Symbol> symbol, ObjectRef<Symbol> property, ObjectRef<Object> value)
 {
     size_t len = this->layers.size();
     for (size_t i = 0; i < len; i++) {
@@ -182,7 +183,7 @@ void Environment::set_value(
     mthrow("The symbol " << symbol->get_name() << " has not the property " << property->get_name() << " in the lexcal environment");
 }
 
-std::optional<ObjectWeakRef<Object>> Environment::get_value(ObjectWeakRef<Symbol> symbol, ObjectWeakRef<Symbol> property) const
+std::optional<ObjectRef<Object>> Environment::get_value(ObjectRef<Symbol> symbol, ObjectRef<Symbol> property) const
 {
     size_t len = this->layers.size();
     for (size_t i = 0; i < len; i++) {

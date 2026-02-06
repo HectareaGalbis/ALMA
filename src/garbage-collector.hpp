@@ -25,12 +25,14 @@ private:
 
 public:
     GarbageCollector();
+    ~GarbageCollector();
     template <ExtendsGCObject T, typename... AS>
     T* make_object(AS&&... as);
-    void track_root_object(GCObject*& ref);
-    void untrack_root_object(GCObject*& ref);
+    void track_root_object(GCObject** ref);
+    void untrack_root_object(GCObject** ref);
     void collect();
     void try_collect();
+    size_t size() const;
 };
 
 template <ExtendsGCObject T, typename... AS>
@@ -38,7 +40,7 @@ T* GarbageCollector::make_object(AS&&... as)
 {
     GCObject* newObject = new T(std::forward<AS>(as)...);
     this->object_pool.insert(newObject);
-    return reinterpret_cast<T*>(newObject);
+    return static_cast<T*>(newObject);
 }
 
 class GCObject {
@@ -48,6 +50,7 @@ private:
     std::unordered_set<GCObject**> references;
 
 public:
+    virtual ~GCObject() = default;
     std::unordered_set<GCObject**>& get_references();
     bool is_reference_tracked(GCObject** ref) const;
     void track_reference(GCObject** ref);

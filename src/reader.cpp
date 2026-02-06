@@ -7,14 +7,14 @@
 #include "package.hpp"
 #include "string.hpp"
 #include <iostream>
+#include <optional>
 #include <regex>
 
-#define ithrow(MSG)                                                                         \
-    {                                                                                       \
-        std::stringstream gensym(ss);                                                       \
-        gensym(ss) << MSG;                                                                  \
-        gensym(ss) << this->name << "(" << this->line << ":" << this->pos << ") | " << MSG; \
-        throw std::runtime_error(gensym(ss).str());                                         \
+#define ithrow(MSG)                                                                       \
+    {                                                                                     \
+        std::stringstream gensym(ss);                                                     \
+        gensym(ss) << this->name << ":" << this->line << ":" << this->pos << ": " << MSG; \
+        throw std::runtime_error(gensym(ss).str());                                       \
     }
 
 #define iassert(COND, MSG) \
@@ -26,14 +26,40 @@ bool Reader::Input::eof() const
     return this->input.eof();
 }
 
+bool Reader::Input::read_until_next_object(bool eofp)
+{
+    try {
+        this->read_blank();
+    } catch (const std::ios_base::failure& e) {
+        if (!eofp)
+            ithrow("Found EOF");
+        return false;
+    }
+    return true;
+}
+
+bool Reader::Input::read_next_char(char c)
+{
+    this->read_blank();
+    int d = this->read_char();
+    if (c != d) {
+        this->unread_char();
+        return false;
+    }
+    return true;
+}
+
 int Reader::Input::read_char()
 {
     int c = this->input.get();
-    iassert(c != EOF, "Unexpected EOF");
-    this->pos++;
+    this->last_pos = this->pos;
     this->changed_line = (c == '\n');
-    if (this->changed_line)
+    if (this->changed_line) {
         this->line++;
+        this->pos = 1;
+    } else {
+        this->pos++;
+    }
     return c;
 }
 
@@ -44,7 +70,7 @@ void Reader::Input::unread_char()
     if (this->changed_line) {
         this->line--;
         this->changed_line = false;
-        this->pos--;
+        this->pos = this->last_pos;
     }
 }
 
@@ -79,7 +105,7 @@ void Reader::Input::read_blank()
     while (this->read_whitespace() || this->read_comment()) { }
 }
 
-std::optional<ObjectWeakRef<String>> Reader::Input::read_string()
+std::optional<ObjectRef<String>> Reader::Input::read_string()
 {
     int q = this->read_char();
     if (q != '"') {
@@ -88,40 +114,44 @@ std::optional<ObjectWeakRef<String>> Reader::Input::read_string()
     }
     std::string content;
     bool next_special = false;
-    while (input) {
-        int d = this->read_char();
-        if (next_special) {
-            switch (d) {
-            case 'n':
-                content.push_back('\n');
-                break;
-            case 'b':
-                content.push_back(' ');
-                break;
-            case 't':
-                content.push_back('\t');
-                break;
-            case '"':
-                content.push_back('"');
-                break;
-            case '\\':
-                content.push_back('\\');
-                break;
+    try {
+        while (input) {
+            int d = this->read_char();
+            if (next_special) {
+                switch (d) {
+                case 'n':
+                    content.push_back('\n');
+                    break;
+                case 'b':
+                    content.push_back(' ');
+                    break;
+                case 't':
+                    content.push_back('\t');
+                    break;
+                case '"':
+                    content.push_back('"');
+                    break;
+                case '\\':
+                    content.push_back('\\');
+                    break;
+                }
+                next_special = false;
+            } else {
+                if (d == '\\')
+                    next_special = true;
+                else if (d == '"')
+                    break;
+                else
+                    content.push_back(d);
             }
-            next_special = false;
-        } else {
-            if (d == '\\')
-                next_special = true;
-            else if (d == '"')
-                break;
-            else
-                content.push_back(d);
         }
+    } catch (const std::ios_base::failure& e) {
+        ithrow("Unfinished string");
     }
     return this->alma.make<String>(content);
 }
 
-std::optional<ObjectWeakRef<Object>> Reader::Input::read_list()
+std::optional<ObjectRef<Object>> Reader::Input::read_list()
 {
     // Read left paren
     {
@@ -133,42 +163,47 @@ std::optional<ObjectWeakRef<Object>> Reader::Input::read_list()
     }
 
     // Read list objects
-    std::vector<ObjectWeakRef<Object>> objects;
-    while (input) {
-        std::optional<ObjectWeakRef<Object>> object = this->read_next_object();
-        if (object)
-            objects.push_back(*object);
-        else
-            break;
-    }
-
-    // Read dot
+    std::vector<ObjectRef<Object>> objects;
     bool proper_list = true;
-    {
-        int dot = this->read_char();
-        if (dot == '.')
-            proper_list = false;
-        else
-            this->unread_char();
+    try {
+        while (input) {
+            if (this->read_next_char('.')) {
+                proper_list = false;
+                break;
+            }
+            std::optional<ObjectRef<Object>> object = this->read_next_object();
+            if (object)
+                objects.push_back(*object);
+            else
+                break;
+        }
+    } catch (const std::ios_base::failure& e) {
+        ithrow("Expected the character ')'");
     }
 
     // Read non proper object
-    std::optional<ObjectWeakRef<Object>> non_proper_object;
-    if (!proper_list) {
-        non_proper_object = this->read_next_object();
-        iassert(non_proper_object, "Expected an object after the dot character");
-        this->read_blank();
+    std::optional<ObjectRef<Object>> non_proper_object;
+    try {
+        if (!proper_list) {
+            non_proper_object = this->read_next_object();
+            iassert(non_proper_object, "Expected an object after the dot character");
+            this->read_blank();
+        }
+    } catch (const std::ios_base::failure& e) {
+        ithrow("Expected an object after the dot character");
     }
 
     // Read right paren
-    {
+    try {
         int rp = this->read_char();
         iassert(rp == ')', "Expected the character ')' but found '" << static_cast<char>(rp) << "'");
+    } catch (const std::ios_base::failure& e) {
+        ithrow("Expected the character ')'");
     }
 
     // Make result
     if (objects.empty())
-        return this->alma.find_alma_symbol("nil");
+        return this->alma.intern_alma_symbol("nil");
     else if (non_proper_object) {
         return this->alma.make<Cons>(objects, *non_proper_object);
     } else {
@@ -176,21 +211,21 @@ std::optional<ObjectWeakRef<Object>> Reader::Input::read_list()
     }
 }
 
-std::optional<ObjectWeakRef<Object>> Reader::Input::read_quote()
+std::optional<ObjectRef<Object>> Reader::Input::read_quote()
 {
     int q = this->read_char();
     if (q != '\'') {
         this->unread_char();
         return std::nullopt;
     }
-    std::optional<ObjectWeakRef<Object>> object = this->read_next_object();
+    std::optional<ObjectRef<Object>> object = this->read_next_object();
     iassert(object, "Expected an object after the quote");
-    ObjectWeakRef<Object> qs = this->alma.find_alma_symbol("quote");
+    ObjectRef<Object> qs = this->alma.intern_alma_symbol("quote");
 
-    return this->alma.make<Cons>(std::vector<ObjectWeakRef<Object>> { qs, *object });
+    return this->alma.make<Cons>(std::vector<ObjectRef<Object>> { qs, *object });
 }
 
-std::optional<ObjectWeakRef<Object>> Reader::Input::read_quasiquote()
+std::optional<ObjectRef<Object>> Reader::Input::read_quasiquote()
 {
     int q = this->read_char();
     if (q != '`') {
@@ -198,15 +233,15 @@ std::optional<ObjectWeakRef<Object>> Reader::Input::read_quasiquote()
         return std::nullopt;
     }
     this->quasiquote_level++;
-    std::optional<ObjectWeakRef<Object>> object = this->read_next_object();
+    std::optional<ObjectRef<Object>> object = this->read_next_object();
     iassert(object, "Expected an object after the backquote");
     this->quasiquote_level--;
-    ObjectWeakRef<Object> qs = this->alma.find_alma_symbol("quasiquote");
+    ObjectRef<Object> qs = this->alma.intern_alma_symbol("quasiquote");
 
-    return this->alma.make<Cons>(std::vector<ObjectWeakRef<Object>> { qs, *object });
+    return this->alma.make<Cons>(std::vector<ObjectRef<Object>> { qs, *object });
 }
 
-std::optional<ObjectWeakRef<Object>> Reader::Input::read_unquote()
+std::optional<ObjectRef<Object>> Reader::Input::read_unquote()
 {
     int q = this->read_char();
     if (q != ',') {
@@ -222,12 +257,12 @@ std::optional<ObjectWeakRef<Object>> Reader::Input::read_unquote()
     iassert(quasiquote_level != 0, (slice ? "slice-unquote" : "unquote") << " outside quasiquote");
 
     quasiquote_level--;
-    std::optional<ObjectWeakRef<Object>> object = this->read_next_object();
+    std::optional<ObjectRef<Object>> object = this->read_next_object();
     iassert(object, "Expected an object after the " << (slice ? "slice-unquote" : "unquote"));
     quasiquote_level++;
-    ObjectWeakRef<Object> qs = this->alma.find_alma_symbol(slice ? "slice-unquote" : "unquote");
+    ObjectRef<Object> qs = this->alma.intern_alma_symbol(slice ? "slice-unquote" : "unquote");
 
-    return this->alma.make<Cons>(std::vector<ObjectWeakRef<Object>> { qs, *object });
+    return this->alma.make<Cons>(std::vector<ObjectRef<Object>> { qs, *object });
 }
 
 static bool is_token_character(int c)
@@ -236,7 +271,7 @@ static bool is_token_character(int c)
         || (c >= '<' && c <= 'Z') || c == '_' || (c >= 'a' && c <= 'z');
 }
 
-static std::optional<ObjectWeakRef<Integer>> parse_number(const std::string& token, Alma& alma)
+static std::optional<ObjectRef<Integer>> parse_number(const std::string& token, Alma& alma)
 {
     std::regex int_regex(R"(^[+-]?\d+$)");
     if (std::regex_match(token, int_regex)) {
@@ -281,12 +316,12 @@ static std::vector<std::string> parse_token(const std::string& token)
 // TODO: Crear arrays [m 0 1]
 // TODO: Hacer diccionarios {a 3 b 4 c 5}
 
-ObjectWeakRef<Symbol> Reader::Input::findSymbol(const std::vector<std::string>& splittedTokens)
+ObjectRef<Symbol> Reader::Input::findSymbol(const std::vector<std::string>& splittedTokens)
 {
-    ObjectWeakRef<Package> packageIt = alma.get_current_package();
+    ObjectRef<Package> packageIt = alma.get_current_package();
     for (size_t i = 0; i < splittedTokens.size() - 1; i++) {
-        ObjectWeakRef<Symbol> packageSymbol = packageIt->intern_symbol(splittedTokens[i]);
-        std::optional<ObjectWeakRef<Package>> next_package = packageSymbol->get_package();
+        ObjectRef<Symbol> packageSymbol = packageIt->intern_symbol(splittedTokens[i]);
+        std::optional<ObjectRef<Package>> next_package = packageSymbol->get_package();
         if (!next_package) {
             std::string currentSymbol;
             for (size_t j = 0; j < i; j++)
@@ -299,7 +334,7 @@ ObjectWeakRef<Symbol> Reader::Input::findSymbol(const std::vector<std::string>& 
     return packageIt->intern_symbol(splittedTokens.back());
 }
 
-std::optional<ObjectWeakRef<Object>> Reader::Input::read_token()
+std::optional<ObjectRef<Object>> Reader::Input::read_token()
 {
     int c = this->input.peek();
     if (!is_token_character(c))
@@ -314,7 +349,7 @@ std::optional<ObjectWeakRef<Object>> Reader::Input::read_token()
         token.push_back(d);
     }
 
-    std::optional<ObjectWeakRef<Integer>> number = parse_number(token, this->alma);
+    std::optional<ObjectRef<Integer>> number = parse_number(token, this->alma);
     if (number)
         return number;
 
@@ -327,7 +362,7 @@ std::optional<ObjectWeakRef<Object>> Reader::Input::read_token()
         return __obj__;        \
     }
 
-std::optional<ObjectWeakRef<Object>> Reader::Input::read_next_object()
+std::optional<ObjectRef<Object>> Reader::Input::read_next_object()
 {
     this->read_blank();
     maybe(this->read_string());
@@ -336,16 +371,12 @@ std::optional<ObjectWeakRef<Object>> Reader::Input::read_next_object()
     maybe(this->read_quasiquote());
     maybe(this->read_unquote());
     maybe(this->read_token());
-    ithrow("Unexpected token " << this->input.peek());
+    return std::nullopt;
 }
 
-std::optional<ObjectWeakRef<Object>> Reader::read(bool eof)
+std::optional<ObjectRef<Object>> Reader::read(bool eof)
 {
-    try {
+    if (this->input.read_until_next_object(eof))
         return this->input.read_next_object();
-    } catch (const std::runtime_error& e) {
-        if (this->input.eof() && eof)
-            return std::nullopt;
-        throw e;
-    }
+    return std::nullopt;
 }

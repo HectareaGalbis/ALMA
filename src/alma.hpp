@@ -15,9 +15,9 @@ class Alma {
 
 private:
     GarbageCollector gc;
-    ObjectProtectedRef<Environment> environment;
-    ObjectProtectedRef<Package> alma_package;
-    ObjectProtectedRef<Package> current_package;
+    ObjectRef<Environment> environment;
+    ObjectRef<Package> alma_package;
+    ObjectRef<Package> current_package;
 
 private:
     void intern_functions();
@@ -28,89 +28,92 @@ public:
 
     /** Allocates an object */
     template <typename T, typename... AS>
-    ObjectWeakRef<T> make(AS&&... as);
+    ObjectRef<T> make(AS&&... as);
 
     /** Evaluates an object */
-    ObjectWeakRef<Object> eval(ObjectWeakRef<Object> obj, ObjectWeakRef<Environment> environment);
-    ObjectWeakRef<Object> eval(ObjectWeakRef<Object> obj);
+    ObjectRef<Object> eval(ObjectRef<Object> obj, ObjectRef<Environment> environment);
+    ObjectRef<Object> eval(ObjectRef<Object> obj);
 
     /** Loads a file */
     void load(const std::filesystem::path& path);
 
     /** Applies an object */
-    ObjectWeakRef<Object> apply(
-        ObjectWeakRef<Object> obj,
-        const std::vector<ObjectWeakRef<Object>>& arg_list,
-        ObjectWeakRef<Environment> environment);
-    ObjectWeakRef<Object> apply(
-        ObjectWeakRef<Object> obj,
-        ObjectWeakRef<Cons> args,
-        ObjectWeakRef<Environment> environment);
+    ObjectRef<Object> apply(
+        ObjectRef<Object> obj,
+        const std::vector<ObjectRef<Object>>& arg_list,
+        ObjectRef<Environment> environment);
+    ObjectRef<Object> apply(
+        ObjectRef<Object> obj,
+        ObjectRef<Cons> args,
+        ObjectRef<Environment> environment);
 
     /** Return the current package */
-    ObjectWeakRef<Package> get_current_package();
+    ObjectRef<Package> get_current_package();
 
     /** Return a string representation of an object */
-    std::string to_string(ObjectWeakRef<Object> obj);
+    std::string to_string(ObjectRef<Object> obj);
 
     /** Check the type of an object */
-    bool typep(ObjectWeakRef<Object> obj, ObjectWeakRef<Object> sym);
-    bool alma_typep(ObjectWeakRef<Object> obj, const std::string& type);
+    bool typep(ObjectRef<Object> obj, ObjectRef<Object> sym);
+    bool alma_typep(ObjectRef<Object> obj, const std::string& type);
 
     /** Check if an object is a symbol */
-    bool symbolp(ObjectWeakRef<Object> obj);
+    bool symbolp(ObjectRef<Object> obj);
 
     /** Get the value of a symbol */
-    ObjectWeakRef<Object> symbol_value(ObjectWeakRef<Symbol> symbol);
+    ObjectRef<Object> symbol_value(ObjectRef<Symbol> symbol);
 
     /** Set the value of a symbol */
-    ObjectWeakRef<Object> set_symbol_value(ObjectWeakRef<Symbol> symbol, ObjectWeakRef<Object> value);
+    ObjectRef<Object> set_symbol_value(ObjectRef<Symbol> symbol, ObjectRef<Object> value);
 
     /** Check if an object is a cons */
-    bool consp(ObjectWeakRef<Object> obj);
+    bool consp(ObjectRef<Object> obj);
 
     /** Return false for the nil object and true otherwise */
-    bool truep(ObjectWeakRef<Object> obj);
+    bool truep(ObjectRef<Object> obj);
 
     /** Return true for the nil object and false otherwise */
-    bool null(ObjectWeakRef<Object> obj);
+    bool null(ObjectRef<Object> obj);
 
     /** Return the alma's boolean objects */
-    ObjectWeakRef<Object> boolean(bool v);
+    ObjectRef<Object> boolean(bool v);
 
     /** Check if two objects are the same */
-    bool eq(ObjectWeakRef<Object> obj1, ObjectWeakRef<Object> obj2);
+    bool eq(ObjectRef<Object> obj1, ObjectRef<Object> obj2);
 
     /** Assign a value to a symbol */
-    ObjectWeakRef<Object> setq(ObjectWeakRef<Symbol> symbol, ObjectWeakRef<Object> value,
-        ObjectWeakRef<Environment> environment);
-    ObjectWeakRef<Object> setq(ObjectWeakRef<Symbol> symbol, ObjectWeakRef<Object> value);
+    ObjectRef<Object> setq(ObjectRef<Symbol> symbol, ObjectRef<Object> value,
+        ObjectRef<Environment> environment);
+    ObjectRef<Object> setq(ObjectRef<Symbol> symbol, ObjectRef<Object> value);
 
     /** Return a symbol */
-    ObjectWeakRef<Object> find_symbol(const std::string& name, ObjectWeakRef<Package> package);
+    ObjectRef<Object> find_symbol(const std::string& name, ObjectRef<Package> package);
 
     /** Return a symbol from the current packge */
-    ObjectWeakRef<Object> find_symbol(const std::string& name);
+    ObjectRef<Object> find_symbol(const std::string& name);
 
     /** Return a symbol from the alma package */
-    ObjectWeakRef<Object> find_alma_symbol(const std::string& name);
+    ObjectRef<Object> find_alma_symbol(const std::string& name);
 
     /** Intern a symbol */
-    ObjectWeakRef<Object> intern_symbol(const std::string& name, ObjectWeakRef<Package> package);
+    ObjectRef<Object> intern_symbol(const std::string& name, ObjectRef<Package> package);
 
     /** Intern a symbol in the current package */
-    ObjectWeakRef<Object> intern_symbol(const std::string& name);
+    ObjectRef<Object> intern_symbol(const std::string& name);
 
     /** Intern a symbol in the alma package */
-    ObjectWeakRef<Object> intern_alma_symbol(const std::string& name);
+    ObjectRef<Object> intern_alma_symbol(const std::string& name);
 
     /** Return each element of a cons */
-    ObjectWeakRef<Object> car(ObjectWeakRef<Cons> c);
-    ObjectWeakRef<Object> cdr(ObjectWeakRef<Cons> c);
+    ObjectRef<Object> car(ObjectRef<Cons> c);
+    ObjectRef<Object> cdr(ObjectRef<Cons> c);
 };
 
 template <typename T, typename... AS>
-ObjectWeakRef<T> Alma::make(AS&&... as)
+ObjectRef<T> Alma::make(AS&&... as)
 {
-    return ObjectWeakRef<T>(*this, this->gc.make_object<T>(*this, std::forward<AS>(as)...));
+    ObjectRef<T> obj(*this, this->gc.make_object<T>(*this, std::forward<AS>(as)...));
+    ObjectRef<T> result(obj);
+    this->gc.try_collect();
+    return result;
 }

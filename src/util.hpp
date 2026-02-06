@@ -3,6 +3,7 @@
 
 #include <filesystem>
 #include <sstream>
+#include <vector>
 
 // TOKENPASTE
 #define TOKENPASTE2(X, Y) X##Y

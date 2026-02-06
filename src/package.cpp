@@ -1,6 +1,7 @@
 
 #include "package.hpp"
 #include "alma.hpp"
+#include "debug.hpp"
 #include "symbol.hpp"
 
 Package::Package(Alma& _alma)
@@ -8,23 +9,23 @@ Package::Package(Alma& _alma)
 {
 }
 
-ObjectWeakRef<Object> Package::find_symbol(const std::string& name)
+ObjectRef<Object> Package::find_symbol(const std::string& name)
 {
     if (this->symbols.contains(name)) {
         return this->symbols.at(name);
     } else {
-        return this->alma.find_alma_symbol("nil");
+        return this->alma.intern_alma_symbol("nil");
     }
 }
 
-ObjectWeakRef<Symbol> Package::intern_symbol(const std::string& name)
+ObjectRef<Symbol> Package::intern_symbol(const std::string& name)
 {
     if (!this->symbols.contains(name))
         this->symbols.try_emplace(name, *this, this->alma.make<Symbol>(name));
     return this->symbols.at(name);
 }
 
-bool Package::typep(ObjectWeakRef<Object> self [[maybe_unused]], ObjectWeakRef<Object> type)
+bool Package::typep(ObjectRef<Object> self [[maybe_unused]], ObjectRef<Object> type)
 {
-    return type == this->alma.find_alma_symbol("package") || this->Object::typep(self, type);
+    return type == this->alma.intern_alma_symbol("package") || this->Object::typep(self, type);
 }

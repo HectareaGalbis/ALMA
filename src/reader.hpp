@@ -20,11 +20,12 @@ private:
         size_t pos;
         size_t line;
         bool changed_line;
+        size_t last_pos;
 
         size_t quasiquote_level;
 
     private:
-        ObjectWeakRef<Symbol> findSymbol(const std::vector<std::string>& splittedTokens);
+        ObjectRef<Symbol> findSymbol(const std::vector<std::string>& splittedTokens);
 
     public:
         template <typename... AS>
@@ -32,25 +33,28 @@ private:
 
         bool eof() const;
 
+        bool read_until_next_object(bool eofp);
+
         int read_char();
         void unread_char();
         bool read_whitespace();
         bool read_comment();
         void read_blank();
-        std::optional<ObjectWeakRef<String>> read_string();
-        std::optional<ObjectWeakRef<Object>> read_list();
-        std::optional<ObjectWeakRef<Object>> read_quote();
-        std::optional<ObjectWeakRef<Object>> read_quasiquote();
-        std::optional<ObjectWeakRef<Object>> read_unquote();
-        std::optional<ObjectWeakRef<Object>> read_token();
-        std::optional<ObjectWeakRef<Object>> read_next_object();
+        bool read_next_char(char c);
+        std::optional<ObjectRef<String>> read_string();
+        std::optional<ObjectRef<Object>> read_list();
+        std::optional<ObjectRef<Object>> read_quote();
+        std::optional<ObjectRef<Object>> read_quasiquote();
+        std::optional<ObjectRef<Object>> read_unquote();
+        std::optional<ObjectRef<Object>> read_token();
+        std::optional<ObjectRef<Object>> read_next_object();
     } input;
 
 public:
     template <typename... AS>
     Reader(Alma& alma, const std::string& name, AS&&... args);
 
-    std::optional<ObjectWeakRef<Object>> read(bool eof = true);
+    std::optional<ObjectRef<Object>> read(bool eof = true);
 };
 
 template <typename... AS>
@@ -58,12 +62,13 @@ Reader::Input::Input(Alma& _alma, const std::string& _name, AS&&... args)
     : name(_name)
     , alma(_alma)
     , input(std::forward<AS>(args)...)
-    , pos(0)
-    , line(0)
+    , pos(1)
+    , line(1)
     , changed_line(false)
 
     , quasiquote_level(0)
 {
+    this->input.exceptions(std::ios::eofbit);
 }
 
 template <typename... AS>
