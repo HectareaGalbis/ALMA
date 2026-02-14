@@ -8,7 +8,7 @@ Integer::Integer(Alma& _alma, int64_t _value)
 {
 }
 
-std::string Integer::to_string(ObjectRef<Object> self [[maybe_unused]])
+std::string Integer::to_string()
 {
     return std::to_string(this->value);
 }

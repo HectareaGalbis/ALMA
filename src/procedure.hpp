@@ -52,14 +52,15 @@ public:
 class Macro : public Procedure {
 public:
     Macro(Alma& alma);
-    ObjectRef<Object> expand(
+    virtual ObjectRef<Object> transform(
+        ObjectRef<Object> self,
         const std::vector<ObjectRef<Object>>& arg_list,
-        ObjectRef<Environment> enviroment);
-    virtual bool typep(ObjectRef<Object> self, ObjectRef<Object> type) override;
+        ObjectRef<Environment> enviroment) override;
     virtual ObjectRef<Object> apply(
         ObjectRef<Object> self,
         const std::vector<ObjectRef<Object>>& arg_list,
         ObjectRef<Environment> enviroment) override;
+    virtual bool typep(ObjectRef<Object> self, ObjectRef<Object> type) override;
 };
 
 // -----------------------------------------------------------------------------

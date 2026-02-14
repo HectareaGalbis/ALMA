@@ -1,6 +1,8 @@
 
 #include "reader.hpp"
 #include "alma.hpp"
+#include "character.hpp"
+#include "character_macro.hpp"
 #include "cons.hpp"
 #include "debug.hpp"
 #include "integer.hpp"
@@ -211,6 +213,58 @@ std::optional<ObjectRef<Object>> Reader::Input::read_list()
     }
 }
 
+std::optional<ObjectRef<Object>> Reader::Input::read_character()
+{
+    int d = this->read_char();
+    if (d != '.') {
+        this->unread_char();
+        return std::nullopt;
+    }
+
+    int e = this->read_char();
+    if (e == '\\') {
+        int f = this->read_char();
+        int special_char;
+        switch (f) {
+        case 'n':
+            special_char = '\n';
+            break;
+        case 'b':
+            special_char = '\b';
+            break;
+        case 't':
+            special_char = '\t';
+            break;
+        case '\\':
+            special_char = '\\';
+            break;
+        default:
+            ithrow("Expected a special character but found " << f);
+        }
+        return this->alma.make<Character>(special_char);
+    } else {
+        return this->alma.make<Character>(e);
+    }
+}
+
+std::optional<ObjectRef<Object>> Reader::Input::read_character_macro()
+{
+    int h = this->read_char();
+    if (h != '#') {
+        this->unread_char();
+        return std::nullopt;
+    }
+
+    int c = this->read_char();
+    std::optional<ObjectRef<Object>> obj = this->read_next_object();
+    iassert(obj, "Expected an object after #" << c);
+
+    std::optional<ObjectRef<Procedure>> proc = this->alma.find_character_macro(c);
+    iassert(proc.has_value(), "The character " << c << " is not associated to a character macro");
+
+    return this->alma.make<CharacterMacro>(*proc, *obj);
+}
+
 std::optional<ObjectRef<Object>> Reader::Input::read_quote()
 {
     int q = this->read_char();
@@ -367,6 +421,8 @@ std::optional<ObjectRef<Object>> Reader::Input::read_next_object()
     this->read_blank();
     maybe(this->read_string());
     maybe(this->read_list());
+    maybe(this->read_character());
+    maybe(this->read_character_macro());
     maybe(this->read_quote());
     maybe(this->read_quasiquote());
     maybe(this->read_unquote());

@@ -2,7 +2,7 @@
 #pragma once
 
 #include "debug.hpp"
-#include "garbage-collector.hpp"
+#include "garbage_collector.hpp"
 #include <functional>
 #include <optional>
 #include <string>
@@ -54,12 +54,16 @@ public:
     Object(const Object& other);
     Object(const Object&& other);
 
+    virtual ObjectRef<Object> expand(ObjectRef<Object> self, ObjectRef<Environment> enviroment);
+    virtual ObjectRef<Object> transform(
+        ObjectRef<Object> self,
+        const std::vector<ObjectRef<Object>>& arg_list,
+        ObjectRef<Environment> enviroment);
     virtual ObjectRef<Object> eval(ObjectRef<Object> self, ObjectRef<Environment> enviroment);
     virtual ObjectRef<Object> apply(
         ObjectRef<Object> self,
         const std::vector<ObjectRef<Object>>& arg_list,
         ObjectRef<Environment> enviroment);
-    virtual std::string to_string(ObjectRef<Object> self);
     virtual std::string to_string();
     virtual bool typep(ObjectRef<Object> self, ObjectRef<Object> type);
     operator bool();

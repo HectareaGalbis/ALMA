@@ -43,6 +43,8 @@ private:
         bool read_next_char(char c);
         std::optional<ObjectRef<String>> read_string();
         std::optional<ObjectRef<Object>> read_list();
+        std::optional<ObjectRef<Object>> read_character();
+        std::optional<ObjectRef<Object>> read_character_macro();
         std::optional<ObjectRef<Object>> read_quote();
         std::optional<ObjectRef<Object>> read_quasiquote();
         std::optional<ObjectRef<Object>> read_unquote();

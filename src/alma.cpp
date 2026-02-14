@@ -49,6 +49,21 @@ Alma::Alma()
     this->intern_functions();
 }
 
+ObjectRef<Object> Alma::expand(ObjectRef<Object> obj, ObjectRef<Environment> _environment)
+{
+    try {
+        return obj->expand(obj, _environment);
+    } catch (const std::runtime_error& e) {
+        athrow("Error expanding " << this->to_string(obj) << "\n"
+                                  << e.what());
+    }
+}
+
+ObjectRef<Object> Alma::expand(ObjectRef<Object> obj)
+{
+    return this->expand(obj, this->environment);
+}
+
 ObjectRef<Object> Alma::eval(ObjectRef<Object> obj, ObjectRef<Environment> lex_environment)
 {
     try {
@@ -70,6 +85,24 @@ void Alma::load(const std::filesystem::path& path)
     Reader reader(*this, path.native(), input);
     for (std::optional<ObjectRef<Object>> obj = reader.read(); obj; obj = reader.read())
         this->eval(*obj);
+}
+
+ObjectRef<Object> Alma::transform(
+    ObjectRef<Object> obj,
+    const std::vector<ObjectRef<Object>>& arg_list,
+    ObjectRef<Environment> _environment)
+{
+    return obj->transform(obj, arg_list, _environment);
+}
+
+ObjectRef<Object> Alma::transform(
+    ObjectRef<Object> obj,
+    ObjectRef<Cons> args,
+    ObjectRef<Environment> _environment)
+{
+    auto [arg_list, arg_rest] = args->to_list();
+    aassert(!arg_rest, "Cannot transform a non proper list of arguments " << args);
+    return this->transform(obj, arg_list, _environment);
 }
 
 ObjectRef<Object> Alma::apply(
@@ -97,7 +130,7 @@ ObjectRef<Package> Alma::get_current_package()
 
 std::string Alma::to_string(ObjectRef<Object> obj)
 {
-    return obj->to_string(obj);
+    return obj->to_string();
 }
 
 bool Alma::typep(ObjectRef<Object> obj, ObjectRef<Object> sym)
@@ -196,6 +229,40 @@ ObjectRef<Object> Alma::intern_symbol(const std::string& name)
 ObjectRef<Object> Alma::intern_alma_symbol(const std::string& name)
 {
     return this->alma_package->intern_symbol(name);
+}
+
+ObjectRef<Object> Alma::find_character_macro(char c, ObjectRef<Package> package)
+{
+    std::optional<ObjectRef<Procedure>> proc = package->find_character_macro(c);
+    if (proc.has_value())
+        return *proc;
+    else
+        return this->boolean(false);
+}
+
+ObjectRef<Object> Alma::find_character_macro(char c)
+{
+    return this->find_character_macro(c, this->current_package);
+}
+
+ObjectRef<Object> Alma::find_alma_character_macro(char c)
+{
+    return this->find_character_macro(c, this->alma_package);
+}
+
+ObjectRef<Object> Alma::intern_character_macro(char c, ObjectRef<Procedure> proc, ObjectRef<Package> package)
+{
+    return package->intern_character_macro(c, proc);
+}
+
+ObjectRef<Object> Alma::intern_character_macro(char c, ObjectRef<Procedure> proc)
+{
+    return this->intern_character_macro(c, proc, this->current_package);
+}
+
+ObjectRef<Object> Alma::intern_alma_character_macro(char c, ObjectRef<Procedure> proc)
+{
+    return this->intern_character_macro(c, proc, this->alma_package);
 }
 
 ObjectRef<Object> Alma::car(ObjectRef<Cons> c)

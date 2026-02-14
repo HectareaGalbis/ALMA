@@ -65,33 +65,14 @@ std::pair<std::vector<ObjectRef<Object>>, ObjectRef<Object>> Cons::to_list() con
     return { list, this->alma.intern_alma_symbol("nil") };
 }
 
-ObjectRef<Object> Cons::eval(
-    ObjectRef<Object> self [[maybe_unused]],
-    ObjectRef<Environment> environment)
+ObjectRef<Object> Cons::expand(ObjectRef<Object> self [[maybe_unused]], ObjectRef<Environment> environment)
 {
-    return this->alma.apply(this->alma.eval(this->car, environment), this->cdr, environment);
+    return this->alma.transform(this->alma.eval(this->car, environment), this->cdr, environment);
 }
 
-std::string Cons::to_string(ObjectRef<Object> self [[maybe_unused]])
+ObjectRef<Object> Cons::eval(ObjectRef<Object> self [[maybe_unused]], ObjectRef<Environment> environment)
 {
-    std::stringstream s;
-    s << "(";
-    s << alma.to_string(this->car);
-    ObjectRef<Object> it = this->cdr;
-    while (alma.truep(it)) {
-        s << " ";
-        if (alma.consp(it)) {
-            s << alma.to_string(it.as<Cons>()->car);
-        } else {
-            s << ". ";
-            s << alma.to_string(it);
-            break;
-        }
-        it = it.as<Cons>()->cdr;
-    }
-    s << ")";
-
-    return s.str();
+    return this->alma.apply(this->alma.eval(this->car, environment), this->cdr, environment);
 }
 
 std::string Cons::to_string()

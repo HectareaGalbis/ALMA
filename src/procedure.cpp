@@ -89,24 +89,25 @@ Macro::Macro(Alma& _alma)
 {
 }
 
-ObjectRef<Object> Macro::expand(
+ObjectRef<Object> Macro::transform(
+    ObjectRef<Object> self [[maybe_unused]],
     const std::vector<ObjectRef<Object>>& arg_list,
     ObjectRef<Environment> enviroment)
 {
     return this->eval_body(arg_list, enviroment);
 }
 
-bool Macro::typep(ObjectRef<Object> self, ObjectRef<Object> type)
-{
-    return type == this->alma.intern_alma_symbol("macro") || this->Procedure::typep(self, type);
-}
-
 ObjectRef<Object> Macro::apply(
-    ObjectRef<Object> self [[maybe_unused]],
+    ObjectRef<Object> self,
     const std::vector<ObjectRef<Object>>& arg_list,
     ObjectRef<Environment> enviroment)
 {
-    return this->alma.eval(this->expand(arg_list, enviroment));
+    return this->alma.eval(this->transform(self, arg_list, enviroment));
+}
+
+bool Macro::typep(ObjectRef<Object> self, ObjectRef<Object> type)
+{
+    return type == this->alma.intern_alma_symbol("macro") || this->Procedure::typep(self, type);
 }
 
 // -----------------------------------------------------------------------------

@@ -38,11 +38,6 @@ ObjectRef<Object> Symbol::eval(ObjectRef<Object> self, ObjectRef<Environment> en
     }
 }
 
-std::string Symbol::to_string(ObjectRef<Object> self [[maybe_unused]])
-{
-    return this->name;
-}
-
 std::string Symbol::to_string()
 {
     return this->name;

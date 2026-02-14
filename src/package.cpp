@@ -29,3 +29,17 @@ bool Package::typep(ObjectRef<Object> self [[maybe_unused]], ObjectRef<Object> t
 {
     return type == this->alma.intern_alma_symbol("package") || this->Object::typep(self, type);
 }
+
+std::optional<ObjectRef<Procedure>> Package::find_character_macro(char c)
+{
+    if (this->character_macros.contains(c))
+        return this->character_macros.at(c);
+    return std::nullopt;
+}
+
+ObjectRef<Procedure> Package::intern_character_macro(char c, ObjectRef<Procedure> proc)
+{
+    if (!this->character_macros.contains(c))
+        this->character_macros.try_emplace(c, *this, proc);
+    return proc;
+}

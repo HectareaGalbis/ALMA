@@ -1,12 +1,13 @@
 
 #pragma once
 
-#include "garbage-collector.hpp"
+#include "garbage_collector.hpp"
 #include "object.hpp"
 #include <filesystem>
 
 class Environment;
 class Package;
+class Procedure;
 class Symbol;
 class Object;
 
@@ -30,6 +31,10 @@ public:
     template <typename T, typename... AS>
     ObjectRef<T> make(AS&&... as);
 
+    /** Expands an object */
+    ObjectRef<Object> expand(ObjectRef<Object> obj, ObjectRef<Environment> environment);
+    ObjectRef<Object> expand(ObjectRef<Object> obj);
+
     /** Evaluates an object */
     ObjectRef<Object> eval(ObjectRef<Object> obj, ObjectRef<Environment> environment);
     ObjectRef<Object> eval(ObjectRef<Object> obj);
@@ -37,7 +42,17 @@ public:
     /** Loads a file */
     void load(const std::filesystem::path& path);
 
-    /** Applies an object */
+    /** Transform an object */
+    ObjectRef<Object> transform(
+        ObjectRef<Object> obj,
+        const std::vector<ObjectRef<Object>>& arg_list,
+        ObjectRef<Environment> environment);
+    ObjectRef<Object> transform(
+        ObjectRef<Object> obj,
+        ObjectRef<Cons> args,
+        ObjectRef<Environment> environment);
+
+    /** Apply an object */
     ObjectRef<Object> apply(
         ObjectRef<Object> obj,
         const std::vector<ObjectRef<Object>>& arg_list,
@@ -103,6 +118,24 @@ public:
 
     /** Intern a symbol in the alma package */
     ObjectRef<Object> intern_alma_symbol(const std::string& name);
+
+    /** Return the procedure associated to a character */
+    ObjectRef<Object> find_character_macro(char c, ObjectRef<Package> package);
+
+    /** Return the procedure associated to a character from the current package */
+    ObjectRef<Object> find_character_macro(char c);
+
+    /** Return the procedure associated to a character from the alma package */
+    ObjectRef<Object> find_alma_character_macro(char c);
+
+    /** Associate a procedure to a character */
+    ObjectRef<Object> intern_character_macro(char c, ObjectRef<Procedure> proc, ObjectRef<Package> package);
+
+    /** Associate a procedure to a character in the current package */
+    ObjectRef<Object> intern_character_macro(char c, ObjectRef<Procedure> proc);
+
+    /** Associate a procedure to a character in the alma package */
+    ObjectRef<Object> intern_alma_character_macro(char c, ObjectRef<Procedure> proc);
 
     /** Return each element of a cons */
     ObjectRef<Object> car(ObjectRef<Cons> c);

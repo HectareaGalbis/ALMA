@@ -16,9 +16,10 @@ public:
 
     std::pair<std::vector<ObjectRef<Object>>, ObjectRef<Object>> to_list() const;
 
+    virtual ObjectRef<Object> expand(ObjectRef<Object> self, ObjectRef<Environment> enviroment)
+        override;
     virtual ObjectRef<Object> eval(ObjectRef<Object> self, ObjectRef<Environment> enviroment)
         override;
-    virtual std::string to_string(ObjectRef<Object> self) override;
     virtual std::string to_string() override;
     virtual bool typep(ObjectRef<Object> self, ObjectRef<Object> type) override;
 

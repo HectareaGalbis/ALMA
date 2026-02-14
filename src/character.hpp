@@ -3,16 +3,13 @@
 
 #include "object.hpp"
 
-// Integer
-class Integer : public Object {
+class Character : public Object {
 private:
-    int64_t value;
+    char c;
 
 public:
-    Integer(Alma& alma, int64_t _value);
+    Character(Alma& alma, char c);
 
     virtual std::string to_string() override;
     virtual bool typep(ObjectRef<Object> self, ObjectRef<Object> type) override;
-
-    int64_t get_value() const;
 };
