@@ -1,5 +1,5 @@
 
-#include "garbage_collector.hpp"
+#include "gc.hpp"
 #include "alma.hpp"
 #include "debug.hpp"
 #include "object.hpp"

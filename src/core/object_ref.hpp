@@ -1,17 +1,13 @@
 
 #pragma once
 
-#include "debug.hpp"
-#include "garbage_collector.hpp"
-#include <functional>
-#include <optional>
+#include "gc.hpp"
 #include <string>
+
+namespace ALMA::core {
 
 class Alma;
 class Object;
-class Environment;
-class Cons;
-
 template <typename T>
 class ObjectTrackedRef;
 template <typename T>
@@ -38,35 +34,48 @@ concept ObjectRefRelatedType
 
 // -----------------------------------------------------------------------------
 
+// class Object : public GCObject {
+//     template <typename S>
+//     friend class ObjectRef;
+
+// public:
+//     Alma& alma;
+
+// private:
+//     static void protect_object(Alma& alma, GCObject** object);
+//     static void unprotect_object(Alma& alma, GCObject** object);
+
+// public:
+//     Object(Alma& alma);
+//     Object(const Object& other);
+//     Object(const Object&& other);
+
+//     virtual ObjectRef<Object> expand(ObjectRef<Object> self, ObjectRef<Environment> enviroment);
+//     virtual ObjectRef<Object> transform(
+//         ObjectRef<Object> self,
+//         const std::vector<ObjectRef<Object>>& arg_list,
+//         ObjectRef<Environment> enviroment);
+//     virtual ObjectRef<Object> eval(ObjectRef<Object> self, ObjectRef<Environment> enviroment);
+//     virtual ObjectRef<Object> apply(
+//         ObjectRef<Object> self,
+//         const std::vector<ObjectRef<Object>>& arg_list,
+//         ObjectRef<Environment> enviroment);
+//     virtual std::string to_string();
+//     virtual bool typep(ObjectRef<Object> self, ObjectRef<Object> type);
+//     operator bool();
+// };
+
 class Object : public GCObject {
     template <typename S>
     friend class ObjectRef;
-
-public:
-    Alma& alma;
 
 private:
     static void protect_object(Alma& alma, GCObject** object);
     static void unprotect_object(Alma& alma, GCObject** object);
 
 public:
-    Object(Alma& alma);
-    Object(const Object& other);
-    Object(const Object&& other);
-
-    virtual ObjectRef<Object> expand(ObjectRef<Object> self, ObjectRef<Environment> enviroment);
-    virtual ObjectRef<Object> transform(
-        ObjectRef<Object> self,
-        const std::vector<ObjectRef<Object>>& arg_list,
-        ObjectRef<Environment> enviroment);
-    virtual ObjectRef<Object> eval(ObjectRef<Object> self, ObjectRef<Environment> enviroment);
-    virtual ObjectRef<Object> apply(
-        ObjectRef<Object> self,
-        const std::vector<ObjectRef<Object>>& arg_list,
-        ObjectRef<Environment> enviroment);
-    virtual std::string to_string();
-    virtual bool typep(ObjectRef<Object> self, ObjectRef<Object> type);
-    operator bool();
+    virtual ObjectRef<Object> eval(ObjectRef<Object> self);
+    virtual bool is_true();
 };
 
 // -----------------------------------------------------------------------------
@@ -639,3 +648,5 @@ struct ObjectRefEqual {
         return obj1.obj == obj2.obj;
     }
 };
+
+}

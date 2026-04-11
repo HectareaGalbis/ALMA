@@ -1,53 +1,37 @@
 
 #pragma once
 
-#include "garbage_collector.hpp"
-#include "object.hpp"
-#include <filesystem>
+#include "gc.hpp"
+#include "object_ref.hpp"
+#include <optional>
 
-class Environment;
-class Package;
-class Procedure;
-class Symbol;
-class Object;
+namespace ALMA::core {
 
 class Alma {
-    friend class Object;
+    template <typename S>
+    friend class ObjectRef;
 
 private:
     GarbageCollector gc;
-    ObjectRef<Environment> environment;
-    ObjectRef<Package> alma_package;
-    ObjectRef<Package> current_package;
-
-private:
-    static Alma* global_alma;
+    ObjectRef<Reader> alma_package;
+    ObjectRef<Evaluator> environment;
+    ObjectRef<Printer> printer;
 
 public:
-    class WithAlma {
-    public:
-        WithAlma(Alma& alma);
-        ~WithAlma();
-    };
-
-private:
-    void intern_functions();
-    void intern_symbols();
-
-public:
-    Alma();
+    Alma(ObjectWeakRef<Reader> reader, ObjectWeakRef<Evaluator> evaluator, ObjectWeakRef<Printer> printer);
 
     /** Allocates an object */
     template <typename T, typename... AS>
     ObjectRef<T> make(AS&&... as);
 
-    /** Expands an object */
-    ObjectRef<Object> expand(ObjectRef<Object> obj, ObjectRef<Environment> environment);
-    ObjectRef<Object> expand(ObjectRef<Object> obj);
+    /** Evaluates an object */
+    std::optional<ObjectRef<Object>> read(std::istream& input);
 
     /** Evaluates an object */
-    ObjectRef<Object> eval(ObjectRef<Object> obj, ObjectRef<Environment> environment);
     ObjectRef<Object> eval(ObjectRef<Object> obj);
+
+    /** Prints an object */
+    void print(ObjectRef<Object> obj, std::ostream& output);
 
     /** Loads a file */
     void load(const std::filesystem::path& path);
@@ -155,8 +139,9 @@ public:
 template <typename T, typename... AS>
 ObjectRef<T> Alma::make(AS&&... as)
 {
-    ObjectRef<T> obj(*this, this->gc.make_object<T>(*this, std::forward<AS>(as)...));
-    ObjectRef<T> result(obj);
+    ObjectRef<T> obj(this->gc.make_object<T>(*this, std::forward<AS>(as)...));
     this->gc.try_collect();
-    return result;
+    return obj;
+}
+
 }

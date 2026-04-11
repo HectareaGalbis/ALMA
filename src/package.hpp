@@ -17,7 +17,7 @@ public:
     virtual bool typep(ObjectRef<Object> self, ObjectRef<Object> type) override;
 
     // Symbols
-    ObjectRef<Object> find_symbol(const std::string& name);
+    std::optional<ObjectRef<Object>> find_symbol(const std::string& name);
     ObjectRef<Symbol> intern_symbol(const std::string& name);
 
     // Character macros
